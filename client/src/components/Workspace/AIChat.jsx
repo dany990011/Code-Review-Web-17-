@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Code2, Loader2 } from 'lucide-react';
+import { Send, Bot, User, Code2, Loader2, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -37,11 +37,11 @@ export default function AIChat({ messages, onSendMessage, selectedLine, activeFi
             animate={{ opacity: 1, y: 0 }}
             className={`flex gap-3 \${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 \${msg.role === 'user' ? 'bg-purple-500/20 text-purple-500' : 'bg-blue-500/20 text-blue-500'}`}>
-              {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-purple-500/20 text-purple-500' : msg.role === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'}`}>
+              {msg.role === 'user' ? <User className="w-5 h-5" /> : msg.role === 'error' ? <AlertTriangle className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
             </div>
-            <div className={`flex flex-col max-w-[75%] \${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              <div className={`p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-tr-sm' : 'bg-muted text-foreground rounded-tl-sm'}`}>
+            <div className={`flex flex-col max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div className={`p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-tr-sm' : msg.role === 'error' ? 'bg-red-950/50 border border-red-900 text-red-400 rounded-tl-sm' : 'bg-muted text-foreground rounded-tl-sm'}`}>
                 <div className="markdown-body">
                   <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                     {msg.content}

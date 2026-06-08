@@ -169,7 +169,8 @@ app.post('/api/projects/:projectId/chat', async (req, res) => {
         const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${activeFile}`);
         if (fileRes.ok) {
           const rawCode = await fileRes.text();
-          fileContentStr = `[System Context: The user is currently viewing the file '${activeFile}'. Here is the code:]\n\`\`\`\n${rawCode}\n\`\`\`\n\n`;
+          const numberedCode = rawCode.split('\n').map((line, i) => `${i + 1}: ${line}`).join('\n');
+          fileContentStr = `[System Context: The user is currently viewing the file '${activeFile}'. Here is the code:]\n\`\`\`\n${numberedCode}\n\`\`\`\n\n`;
         }
       } catch (err) {
         console.error("Failed to fetch active file context:", err);
@@ -302,6 +303,114 @@ app.post('/api/projects/:projectId/analyze', async (req, res) => {
   } catch (error) {
     console.error('Error during analysis:', error);
     res.status(500).json({ error: 'Failed to analyze codebase' });
+  }
+});
+
+// API Endpoint for requirements checking
+app.post('/api/projects/:projectId/check-requirements', async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    if (!fs.existsSync(project.requirementsFilePath)) {
+      return res.status(400).json({ error: 'Requirements document not found on server.' });
+    }
+
+    const ext = path.extname(project.requirementsFileName).toLowerCase();
+    
+    // Convert doc to inlineData format
+    const docBuffer = fs.readFileSync(project.requirementsFilePath);
+    const base64Doc = docBuffer.toString('base64');
+    
+    let mimeType = 'text/plain';
+    if (ext === '.pdf') mimeType = 'application/pdf';
+    else if (ext === '.docx') return res.status(400).json({ error: 'DOCX files are not directly supported by the Gemini vision engine via this method. Please recreate the project and upload a PDF or text file.' });
+    
+    const documentPart = {
+      inlineData: {
+        data: base64Doc,
+        mimeType
+      }
+    };
+
+    // Fetch Repository Tree
+    const repoInfo = parseGithubUrl(project.githubUrl);
+    if (!repoInfo) return res.status(400).json({ error: 'Invalid GitHub URL' });
+
+    const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
+    if (!repoRes.ok) return res.status(500).json({ error: 'Failed to fetch repository from GitHub.' });
+    const repoData = await repoRes.json();
+    const branch = repoData.default_branch || 'main';
+
+    const treeRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`);
+    if (!treeRes.ok) return res.status(500).json({ error: 'Failed to fetch repository tree from GitHub.' });
+    const treeData = await treeRes.json();
+    
+    if (!treeData.tree) return res.status(500).json({ error: 'GitHub API returned an invalid tree structure.' });
+
+    // Filter for relevant code files (limit to 15)
+    const validExtensions = /\.(js|jsx|ts|tsx|css|html|py|java|cpp|c|cs|go|rb|php|swift|kt|rs)$/i;
+    const ignorePaths = /node_modules|package-lock\.json|\bdist\b|\bbuild\b|\.min\./i;
+    
+    const validFiles = treeData.tree
+      .filter(item => item.type === 'blob' && validExtensions.test(item.path) && !ignorePaths.test(item.path))
+      .slice(0, 15);
+
+    if (validFiles.length === 0) {
+      return res.status(400).json({ error: 'No relevant source code files found in this repository.' });
+    }
+
+    // Fetch Raw Code
+    const fileContents = await Promise.all(validFiles.map(async file => {
+      const res = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${file.path}`);
+      if (!res.ok) return '';
+      const code = await res.text();
+      return `--- FILE: ${file.path} ---\n${code}\n`;
+    }));
+
+    const fullCodebaseStr = fileContents.filter(Boolean).join('\n');
+    if (!fullCodebaseStr.trim()) {
+      return res.status(400).json({ error: 'Could not fetch code content from GitHub.' });
+    }
+
+    const systemPrompt = `You are an expert AI software auditor. You have been provided with two things:
+1. A Requirements Document (attached as a file)
+2. A Codebase (attached as text below)
+
+Analyze the codebase strictly against the provided requirements document. 
+Determine what features have been implemented correctly, what features are missing, and provide an overall compliance status.
+
+IMPORTANT: You MUST return the result EXACTLY as a JSON object with the following structure. Do not include markdown formatting or backticks.
+{
+  "overallStatus": "Pass" | "Partial" | "Fail",
+  "score": 85,
+  "summary": "The application meets most requirements, but lacks X and Y.",
+  "implementedFeatures": ["feature 1", "feature 2"],
+  "missingFeatures": ["missing feature 1", "missing feature 2"],
+  "criticalIssues": ["critical issue 1", "critical issue 2"]
+}`;
+
+    // Note: use gemini-2.5-flash since we are passing multimodal inlineData
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
+
+    const result = await model.generateContent([
+      systemPrompt + `\n\n[CODEBASE]\n${fullCodebaseStr}`,
+      documentPart
+    ]);
+    
+    const responseText = result.response.text();
+    const analysisJson = JSON.parse(responseText);
+
+    project.requirementsCheckResults = analysisJson;
+    await project.save();
+
+    res.json(analysisJson);
+  } catch (error) {
+    console.error('Error during requirements check:', error);
+    res.status(500).json({ error: `Failed to perform requirements check: ${error.message}` });
   }
 });
 

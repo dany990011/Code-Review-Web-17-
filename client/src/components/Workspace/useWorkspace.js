@@ -10,6 +10,7 @@ export default function useWorkspace() {
   const [chatMessages, setChatMessages] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [analysisResults, setAnalysisResults] = useState([]);
+  const [project, setProject] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [checklist, setChecklist] = useState([
     { id: 1, category: 'Security', checked: false },
@@ -42,8 +43,11 @@ export default function useWorkspace() {
       fetch(`http://localhost:5000/api/projects/${projectId}`)
         .then(res => res.json())
         .then(data => {
-          if (data && data.analysisResults) {
-            setAnalysisResults(data.analysisResults);
+          if (data) {
+            setProject(data);
+            if (data.analysisResults) {
+              setAnalysisResults(data.analysisResults);
+            }
           }
         })
         .catch(err => console.error("Error fetching project:", err));
@@ -130,10 +134,18 @@ export default function useWorkspace() {
           return [...updated, userMessage, botMessage];
         });
       } else {
-         console.error('Failed to get AI response');
+        console.error('Failed to get AI response');
+        setChatMessages(prev => [
+          ...prev, 
+          { role: 'error', content: 'The Socratic AI server is currently unavailable or encountered an error. Please try your request again.', timestamp: new Date().toISOString() }
+        ]);
       }
     } catch (error) {
       console.error('Error in chat:', error);
+      setChatMessages(prev => [
+        ...prev, 
+        { role: 'error', content: 'Network error: Could not connect to the AI server. Please check your connection and try again.', timestamp: new Date().toISOString() }
+      ]);
     } finally {
       setIsChatLoading(false);
     }
@@ -164,6 +176,8 @@ export default function useWorkspace() {
   };
 
   return {
+    projectId,
+    project,
     fileTree,
     activeFile,
     fileContent,

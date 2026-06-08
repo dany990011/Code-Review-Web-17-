@@ -1,46 +1,81 @@
 import React, { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export default function CodeViewer({ content, filename, selectedLine, onLineClick }) {
-  const lines = content.split('\n');
-  const lineRefs = useRef({});
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    if (selectedLine && lineRefs.current[selectedLine]) {
-      lineRefs.current[selectedLine].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (selectedLine && containerRef.current) {
+      // Small timeout to ensure DOM is rendered before scrolling
+      setTimeout(() => {
+        const lineEl = containerRef.current.querySelector(`#code-line-${selectedLine}`);
+        if (lineEl) {
+          lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
     }
   }, [selectedLine, content]);
 
+  // Determine language based on file extension
+  const getLanguage = (file) => {
+    if (!file) return 'javascript';
+    const ext = file.split('.').pop().toLowerCase();
+    const map = {
+      'js': 'javascript',
+      'jsx': 'jsx',
+      'ts': 'typescript',
+      'tsx': 'tsx',
+      'css': 'css',
+      'html': 'html',
+      'json': 'json',
+      'py': 'python',
+      'md': 'markdown'
+    };
+    return map[ext] || 'javascript';
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[#0d1117] text-[#c9d1d9] font-mono text-sm overflow-hidden">
-      <div className="flex items-center px-4 py-2 border-b border-[#30363d] bg-[#161b22] text-xs font-semibold text-[#8b949e]">
+    <div className="flex flex-col h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm overflow-hidden">
+      <div className="flex items-center px-4 py-2 border-b border-[#333333] bg-[#252526] text-xs font-semibold text-[#cccccc]">
         {filename}
       </div>
-      <div className="flex-1 overflow-auto p-4 pt-2 pb-10">
-        <div className="flex flex-col">
-          {lines.map((line, idx) => {
-            const lineNumber = idx + 1;
+      <div className="flex-1 overflow-auto p-0 m-0" ref={containerRef}>
+        <SyntaxHighlighter
+          language={getLanguage(filename)}
+          style={vscDarkPlus}
+          showLineNumbers={true}
+          wrapLines={true}
+          customStyle={{
+            margin: 0,
+            padding: '1rem 0 3rem 0',
+            backgroundColor: 'transparent',
+            fontSize: '13px'
+          }}
+          lineProps={lineNumber => {
             const isSelected = selectedLine === lineNumber;
-            return (
-              <motion.div
-                key={lineNumber}
-                ref={el => lineRefs.current[lineNumber] = el}
-                className={`flex hover:bg-[#161b22] cursor-pointer group transition-colors ${isSelected ? 'bg-[#1f6feb]/20' : ''}`}
-                onClick={() => onLineClick(lineNumber)}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, delay: Math.min(idx * 0.005, 0.5) }}
-              >
-                <div className={`w-12 text-right pr-4 select-none \${isSelected ? 'text-[#58a6ff]' : 'text-[#484f58] group-hover:text-[#8b949e]'}`}>
-                  {lineNumber}
-                </div>
-                <div className="flex-1 whitespace-pre pl-2 border-l border-[#30363d]/50">
-                  {line || ' '}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+            return {
+              id: `code-line-${lineNumber}`,
+              style: { 
+                display: 'block', 
+                backgroundColor: isSelected ? 'rgba(38, 79, 120, 0.5)' : 'transparent',
+                cursor: 'pointer',
+                borderLeft: isSelected ? '3px solid #3794ff' : '3px solid transparent'
+              },
+              onClick: () => onLineClick(lineNumber)
+            };
+          }}
+          lineNumberStyle={{
+            minWidth: '3.5em',
+            paddingRight: '1em',
+            textAlign: 'right',
+            color: '#858585',
+            opacity: 0.7,
+            userSelect: 'none'
+          }}
+        >
+          {content || '// Select a file to view its contents'}
+        </SyntaxHighlighter>
       </div>
     </div>
   );

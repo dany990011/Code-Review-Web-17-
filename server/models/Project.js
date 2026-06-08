@@ -20,6 +20,10 @@ const ProjectSchema = new mongoose.Schema({
   analysisResults: {
     type: Array,
     default: []
+  },
+  requirementsCheckResults: {
+    type: Object,
+    default: null
   }
 });
 
