@@ -1,48 +1,107 @@
 import React from 'react';
-import { CheckCircle2, Circle } from 'lucide-react';
+import { CheckCircle2, Circle, Play, Loader2, FileCode2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function Checklist({ items, onToggle }) {
+export default function Checklist({ items, onToggle, analysisResults = [], isAnalyzing, runAnalysis, onFileSelect, onLineClick }) {
   const completedCount = items.filter(i => i.checked).length;
   const progress = (completedCount / items.length) * 100;
+
+  const handleViewIssue = (e, result) => {
+    e.stopPropagation();
+    if (result.offendingFile) {
+      onFileSelect({ path: result.offendingFile }, result.offendingLine);
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 8) return 'text-emerald-400 bg-emerald-900 border-emerald-500';
+    if (score >= 5) return 'text-yellow-400 bg-yellow-900 border-yellow-500';
+    return 'text-red-400 bg-red-900 border-red-500';
+  };
+
+  const getPanelColor = (checked) => {
+    if (checked) return 'opacity-70 bg-muted/50 border-border';
+    return 'bg-card border-border';
+  };
 
   return (
     <div className="flex flex-col h-full bg-card overflow-hidden">
       <div className="p-4 border-b border-border bg-muted/30">
-        <h3 className="font-semibold text-foreground mb-2 flex items-center justify-between">
-          <span>Review Progress</span>
-          <span className="text-sm font-normal text-muted-foreground">{completedCount} of {items.length}</span>
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-foreground">Socratic Scorecard</h3>
+          <button
+            onClick={runAnalysis}
+            disabled={isAnalyzing}
+            className="px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2 transition-colors"
+          >
+            {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+            {isAnalyzing ? 'Analyzing Codebase...' : (analysisResults?.length > 0 ? 'Re-run Analysis' : 'Run AI Analysis')}
+          </button>
+        </div>
+        <div className="flex items-center justify-between mb-2">
+           <span className="text-sm font-medium">Review Progress</span>
+           <span className="text-sm font-normal text-muted-foreground">{completedCount} of {items.length}</span>
+        </div>
         <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
           <motion.div 
             className="h-full bg-emerald-500"
             initial={{ width: 0 }}
-            animate={{ width: `\${progress}%` }}
+            animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5 }}
           />
         </div>
       </div>
       
       <div className="flex-1 overflow-y-auto p-2">
-        {items.map((item, idx) => (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: idx * 0.05 }}
-            onClick={() => onToggle(item.id)}
-            className={`flex items-center gap-3 p-3 my-1 rounded-lg cursor-pointer transition-all hover:bg-muted \${item.checked ? 'opacity-70' : ''}`}
-          >
-            {item.checked ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-            ) : (
-              <Circle className="w-5 h-5 text-muted-foreground shrink-0" />
-            )}
-            <span className={`text-sm font-medium transition-colors \${item.checked ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
-              {item.category}
-            </span>
-          </motion.div>
-        ))}
+        {items.map((item, idx) => {
+          const result = analysisResults?.find(r => r.category.toLowerCase() === item.category.toLowerCase());
+          
+          return (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              onClick={() => onToggle(item.id)}
+              className={`flex flex-col gap-2 p-3 my-2 rounded-lg cursor-pointer border transition-all hover:border-muted-foreground/50 ${getPanelColor(item.checked)}`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {item.checked ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Circle className="w-5 h-5 text-muted-foreground shrink-0" />
+                  )}
+                  <span className={`text-sm font-medium transition-colors ${item.checked ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                    {item.category}
+                  </span>
+                </div>
+                {result && (
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getScoreColor(result.rating)}`}>
+                    {result.rating} / 10
+                  </span>
+                )}
+              </div>
+
+              {result && (
+                <div className="mt-1 pl-8">
+                  <p className="text-xs text-muted-foreground mb-2 leading-relaxed">
+                    {result.reasoning}
+                  </p>
+                  {result.offendingFile && (
+                    <button 
+                      onClick={(e) => handleViewIssue(e, result)}
+                      className="text-xs flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition-colors bg-blue-500/10 px-2 py-1 rounded"
+                    >
+                      <FileCode2 className="w-3 h-3" />
+                      View Issue {result.offendingLine ? `(Line ${result.offendingLine})` : ''}
+                    </button>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );

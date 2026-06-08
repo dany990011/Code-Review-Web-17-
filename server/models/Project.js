@@ -17,6 +17,10 @@ const ProjectSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  analysisResults: {
+    type: Array,
+    default: []
+  }
 });
 
 module.exports = mongoose.model('Project', ProjectSchema);

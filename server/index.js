@@ -28,6 +28,15 @@ function parseGithubUrl(url) {
   return null;
 }
 
+// Wrapper for GitHub API requests to optionally include PAT for higher rate limits
+async function githubFetch(url, options = {}) {
+  const headers = { ...options.headers };
+  if (process.env.GITHUB_TOKEN) {
+    headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+  }
+  return fetch(url, { ...options, headers });
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -74,6 +83,18 @@ app.post('/api/projects/upload', upload.single('requirementsDoc'), async (req, r
   } catch (error) {
     console.error('Error uploading project:', error);
     res.status(500).json({ error: 'Failed to upload project' });
+  }
+});
+
+// API Endpoint to get project details
+app.get('/api/projects/:projectId', async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    res.json(project);
+  } catch (error) {
+    console.error('Error fetching project:', error);
+    res.status(500).json({ error: 'Failed to fetch project' });
   }
 });
 
@@ -142,10 +163,10 @@ app.post('/api/projects/:projectId/chat', async (req, res) => {
       try {
         const project = await Project.findById(req.params.projectId);
         const repoInfo = parseGithubUrl(project.githubUrl);
-        const repoRes = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
+        const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
         const repoData = await repoRes.json();
         const branch = repoData.default_branch || 'main';
-        const fileRes = await fetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${activeFile}`);
+        const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${activeFile}`);
         if (fileRes.ok) {
           const rawCode = await fileRes.text();
           fileContentStr = `[System Context: The user is currently viewing the file '${activeFile}'. Here is the code:]\n\`\`\`\n${rawCode}\n\`\`\`\n\n`;
@@ -175,6 +196,115 @@ app.post('/api/projects/:projectId/chat', async (req, res) => {
   }
 });
 
+// API Endpoint for automated codebase analysis
+app.post('/api/projects/:projectId/analyze', async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // 1. Fetch Repository Tree
+    const repoInfo = parseGithubUrl(project.githubUrl);
+    if (!repoInfo) return res.status(400).json({ error: 'Invalid GitHub URL' });
+
+    const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
+    if (!repoRes.ok) {
+      console.error("GitHub API Error (Repo):", await repoRes.text());
+      return res.status(500).json({ error: 'Failed to fetch repository from GitHub. (Rate limit exceeded or invalid URL)' });
+    }
+    const repoData = await repoRes.json();
+    const branch = repoData.default_branch || 'main';
+
+    const treeRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`);
+    if (!treeRes.ok) {
+      console.error("GitHub API Error (Tree):", await treeRes.text());
+      return res.status(500).json({ error: 'Failed to fetch repository tree from GitHub.' });
+    }
+    const treeData = await treeRes.json();
+    
+    if (!treeData.tree) {
+      return res.status(500).json({ error: 'GitHub API returned an invalid tree structure.' });
+    }
+
+    // 2. Filter for relevant code files (limit to 15 to avoid massive payloads)
+    const validExtensions = /\.(js|jsx|ts|tsx|css|html|py|java|cpp|c|cs|go|rb|php|swift|kt|rs)$/i;
+    const ignorePaths = /node_modules|package-lock\.json|\bdist\b|\bbuild\b|\.min\./i;
+    
+    const validFiles = treeData.tree
+      .filter(item => item.type === 'blob' && validExtensions.test(item.path) && !ignorePaths.test(item.path))
+      .slice(0, 15);
+
+    console.log(`[Analysis] Found ${validFiles.length} valid code files out of ${treeData.tree.length} total items in tree.`);
+
+    if (validFiles.length === 0) {
+      console.log(`[Analysis] Filtered out all files! Here are the first few paths found:`, treeData.tree.slice(0, 5).map(f => f.path));
+      return res.status(400).json({ error: 'No relevant source code files found in this repository. Ensure it contains standard code files and is not empty.' });
+    }
+
+    // 3. Fetch Raw Code for all valid files
+    const fileContents = await Promise.all(validFiles.map(async file => {
+      console.log(`[Analysis] Fetching raw code for: ${file.path}`);
+      const res = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${file.path}`);
+      if (!res.ok) {
+        console.log(`[Analysis] FAILED to fetch ${file.path} - Status: ${res.status}`);
+        return '';
+      }
+      const code = await res.text();
+      return `--- FILE: ${file.path} ---\n${code}\n`;
+    }));
+
+    const fullCodebaseStr = fileContents.filter(Boolean).join('\n');
+    console.log(`[Analysis] Successfully fetched ${fullCodebaseStr.length} bytes of raw code.`);
+    
+    if (!fullCodebaseStr.trim()) {
+      return res.status(400).json({ error: 'Could not fetch code content from GitHub. The repository might be empty or you are rate-limited.' });
+    }
+    
+    const validPaths = validFiles.map(f => f.path);
+
+    // 4. Construct Prompt & Call Gemini
+    const systemPrompt = `You are an expert AI Code Reviewer. Analyze the provided codebase and evaluate it against exactly these 12 categories: Security, Performance, Readability, Architecture, Testing, Error Handling, State Management, Accessibility, Documentation, Scalability, Best Practices, Reusability.
+    
+    For EACH category, assign a score from 0 to 10 (10 being perfect). Provide a 1-sentence reasoning. Identify the single worst offending file path, and the specific line number where the issue exists (if applicable, else null).
+    
+    CRITICAL: The 'offendingFile' MUST perfectly match one of the exact file paths provided below. Do NOT make up paths. If the issue is general or you cannot identify a specific file, set 'offendingFile' to null.
+    
+    VALID FILE PATHS:
+    ${validPaths.join('\n')}
+    
+    IMPORTANT: You MUST return the result EXACTLY as a JSON array of objects. Do not include markdown formatting or backticks.
+    Format: [{"category": "Security", "rating": 5, "reasoning": "Missing sanitization", "offendingFile": "${validPaths[0] || 'src/app.js'}", "offendingLine": 45}, ...]`;
+
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
+
+    const result = await model.generateContent(`${systemPrompt}\n\n[CODEBASE]\n${fullCodebaseStr}`);
+    const responseText = result.response.text();
+    
+    const analysisJson = JSON.parse(responseText);
+
+    // Sanitize output to absolutely prevent UI crashes from AI hallucinations
+    analysisJson.forEach(item => {
+      if (item.offendingFile && !validPaths.includes(item.offendingFile)) {
+        // Try to find a loose match (e.g. AI returned 'App.jsx' instead of 'src/App.jsx')
+        const looseMatch = validPaths.find(p => p.toLowerCase().endsWith(item.offendingFile.toLowerCase().replace(/^\/+/, '')));
+        item.offendingFile = looseMatch || null;
+        if (!item.offendingFile) item.offendingLine = null;
+      }
+    });
+
+    // 5. Save to Database
+    project.analysisResults = analysisJson;
+    await project.save();
+
+    res.json(analysisJson);
+  } catch (error) {
+    console.error('Error during analysis:', error);
+    res.status(500).json({ error: 'Failed to analyze codebase' });
+  }
+});
+
 // GitHub API Proxy: Get Repository Tree
 app.get('/api/projects/:projectId/github/tree', async (req, res) => {
   try {
@@ -184,12 +314,12 @@ app.get('/api/projects/:projectId/github/tree', async (req, res) => {
     const repoInfo = parseGithubUrl(project.githubUrl);
     if (!repoInfo) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
-    const repoRes = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
+    const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
     if (!repoRes.ok) return res.status(repoRes.status).json({ error: 'Failed to fetch repo info' });
     const repoData = await repoRes.json();
     const branch = repoData.default_branch || 'main';
 
-    const treeRes = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`);
+    const treeRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`);
     if (!treeRes.ok) return res.status(treeRes.status).json({ error: 'Failed to fetch repo tree' });
     const treeData = await treeRes.json();
 
@@ -235,11 +365,11 @@ app.get('/api/projects/:projectId/github/file', async (req, res) => {
     const repoInfo = parseGithubUrl(project.githubUrl);
     if (!repoInfo) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
-    const repoRes = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
+    const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
     const repoData = await repoRes.json();
     const branch = repoData.default_branch || 'main';
 
-    const fileRes = await fetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${path}`);
+    const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${path}`);
     if (!fileRes.ok) return res.status(fileRes.status).json({ error: 'Failed to fetch file content' });
     
     const content = await fileRes.text();

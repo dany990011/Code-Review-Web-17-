@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Code2, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 export default function AIChat({ messages, onSendMessage, selectedLine, activeFile, isLoading }) {
   const [input, setInput] = useState('');
@@ -38,8 +41,12 @@ export default function AIChat({ messages, onSendMessage, selectedLine, activeFi
               {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
             </div>
             <div className={`flex flex-col max-w-[75%] \${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              <div className={`p-3 rounded-2xl text-sm \${msg.role === 'user' ? 'bg-purple-600 text-white rounded-tr-sm' : 'bg-muted text-foreground rounded-tl-sm'}`}>
-                {msg.content}
+              <div className={`p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-tr-sm' : 'bg-muted text-foreground rounded-tl-sm'}`}>
+                <div className="markdown-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
               </div>
               {msg.contextLine && (
                 <div className="text-[10px] text-muted-foreground mt-1 px-1">

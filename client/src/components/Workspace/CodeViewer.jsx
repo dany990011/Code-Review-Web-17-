@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 
 export default function CodeViewer({ content, filename, selectedLine, onLineClick }) {
-  const lines = content.split('\\n');
+  const lines = content.split('\n');
+  const lineRefs = useRef({});
+
+  useEffect(() => {
+    if (selectedLine && lineRefs.current[selectedLine]) {
+      lineRefs.current[selectedLine].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [selectedLine, content]);
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117] text-[#c9d1d9] font-mono text-sm overflow-hidden">
@@ -17,7 +24,8 @@ export default function CodeViewer({ content, filename, selectedLine, onLineClic
             return (
               <motion.div
                 key={lineNumber}
-                className={`flex hover:bg-[#161b22] cursor-pointer group transition-colors \${isSelected ? 'bg-[#1f6feb]/20' : ''}`}
+                ref={el => lineRefs.current[lineNumber] = el}
+                className={`flex hover:bg-[#161b22] cursor-pointer group transition-colors ${isSelected ? 'bg-[#1f6feb]/20' : ''}`}
                 onClick={() => onLineClick(lineNumber)}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

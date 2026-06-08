@@ -9,6 +9,8 @@ export default function useWorkspace() {
   const [selectedLine, setSelectedLine] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [analysisResults, setAnalysisResults] = useState([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [checklist, setChecklist] = useState([
     { id: 1, category: 'Security', checked: false },
     { id: 2, category: 'Performance', checked: false },
@@ -35,6 +37,18 @@ export default function useWorkspace() {
         .catch(err => console.error("Error fetching file tree:", err));
     }
 
+    // Fetch Project Details (for analysis results)
+    if (projectId) {
+      fetch(`http://localhost:5000/api/projects/${projectId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.analysisResults) {
+            setAnalysisResults(data.analysisResults);
+          }
+        })
+        .catch(err => console.error("Error fetching project:", err));
+    }
+
     // Fetch chat history
     if (projectId) {
       fetch(`http://localhost:5000/api/projects/${projectId}/messages`)
@@ -57,18 +71,29 @@ export default function useWorkspace() {
     }
   }, [projectId]);
 
-  const handleFileSelect = async (file) => {
-    setActiveFile(file.path);
+  const handleFileSelect = async (file, lineToSelect = null) => {
+    if (!file || !file.path) return;
+    
+    let cleanPath = file.path.replace(/^(\.\/|\/+)/, '');
+    
+    if (['null', 'none', 'n/a', 'undefined'].includes(cleanPath.toLowerCase())) {
+      setActiveFile(null);
+      setFileContent('// No specific file associated with this issue.');
+      return;
+    }
+
+    setActiveFile(cleanPath);
     setSelectedLine(null);
-    setFileContent('// Loading...');
+    setFileContent(`// Loading ${cleanPath}...`);
     
     try {
-      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/github/file?path=${encodeURIComponent(file.path)}`);
+      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/github/file?path=${encodeURIComponent(cleanPath)}`);
       if (response.ok) {
         const content = await response.text();
         setFileContent(content);
+        if (lineToSelect) setSelectedLine(lineToSelect);
       } else {
-        setFileContent('// Error loading file content');
+        setFileContent(`// Error: The AI identified '${cleanPath}', but this file could not be found in the repository.`);
       }
     } catch (err) {
       console.error('Error fetching file content:', err);
@@ -114,6 +139,26 @@ export default function useWorkspace() {
     }
   };
 
+  const runAnalysis = async () => {
+    if (!projectId) return;
+    setIsAnalyzing(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/analyze`, { method: 'POST' });
+      if (response.ok) {
+        const results = await response.json();
+        setAnalysisResults(results);
+      } else {
+        const err = await response.json();
+        alert(`Analysis failed: ${err.error || 'Unknown error'}`);
+        console.error('Failed to run analysis', err);
+      }
+    } catch (err) {
+      console.error("Analysis failed", err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const toggleChecklistCategory = (id) => {
     setChecklist(prev => prev.map(item => item.id === id ? { ...item, checked: !item.checked } : item));
   };
@@ -129,6 +174,9 @@ export default function useWorkspace() {
     handleLineClick,
     handleSendMessage,
     toggleChecklistCategory,
-    isChatLoading
+    isChatLoading,
+    analysisResults,
+    isAnalyzing,
+    runAnalysis
   };
 }
