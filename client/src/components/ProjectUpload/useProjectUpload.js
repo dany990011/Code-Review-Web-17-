@@ -24,7 +24,7 @@ export default function useProjectUpload() {
       formData.append('githubUrl', githubUrl);
       formData.append('requirementsDoc', requirementsDoc);
 
-      const response = await fetch('http://localhost:5000/api/projects/upload', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/upload`, {
         method: 'POST',
         body: formData,
       });

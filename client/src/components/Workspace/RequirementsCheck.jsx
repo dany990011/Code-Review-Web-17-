@@ -11,7 +11,7 @@ export default function RequirementsCheck({ projectId, initialResults }) {
     setIsChecking(true);
     setError(null);
     try {
-      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/check-requirements`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/check-requirements`, {
         method: 'POST'
       });
       const data = await response.json();

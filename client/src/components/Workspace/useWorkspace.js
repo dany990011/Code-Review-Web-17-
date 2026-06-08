@@ -30,7 +30,7 @@ export default function useWorkspace() {
   useEffect(() => {
     // Fetch GitHub tree
     if (projectId) {
-      fetch(`http://localhost:5000/api/projects/${projectId}/github/tree`)
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/github/tree`)
         .then(res => res.json())
         .then(tree => {
           if (Array.isArray(tree)) setFileTree(tree);
@@ -40,7 +40,7 @@ export default function useWorkspace() {
 
     // Fetch Project Details (for analysis results)
     if (projectId) {
-      fetch(`http://localhost:5000/api/projects/${projectId}`)
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`)
         .then(res => res.json())
         .then(data => {
           if (data) {
@@ -55,7 +55,7 @@ export default function useWorkspace() {
 
     // Fetch chat history
     if (projectId) {
-      fetch(`http://localhost:5000/api/projects/${projectId}/messages`)
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/messages`)
         .then(res => res.json())
         .then(data => {
           if (data && data.length > 0) {
@@ -63,12 +63,12 @@ export default function useWorkspace() {
           } else {
             // First time load, save initial bot message
             const initialMsg = { role: 'assistant', content: "Welcome to the review session. Let's start by looking at the code. What do you notice?" };
-            setChatMessages([initialMsg]);
-            fetch(`http://localhost:5000/api/projects/${projectId}/messages`, {
+            fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/messages`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(initialMsg)
             });
+            setChatMessages([initialMsg]);
           }
         })
         .catch(err => console.error("Error fetching messages:", err));
@@ -91,7 +91,7 @@ export default function useWorkspace() {
     setFileContent(`// Loading ${cleanPath}...`);
     
     try {
-      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/github/file?path=${encodeURIComponent(cleanPath)}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/github/file?path=${encodeURIComponent(cleanPath)}`);
       if (response.ok) {
         const content = await response.text();
         setFileContent(content);
@@ -119,7 +119,7 @@ export default function useWorkspace() {
     setIsChatLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/chat`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, contextLine: selectedLine, activeFile })
@@ -155,7 +155,7 @@ export default function useWorkspace() {
     if (!projectId) return;
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/analyze`, { method: 'POST' });
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/analyze`, { method: 'POST' });
       if (response.ok) {
         const results = await response.json();
         setAnalysisResults(results);

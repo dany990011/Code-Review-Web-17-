@@ -1,8 +1,18 @@
 import React from 'react';
-import { Activity, Users, CheckCircle } from 'lucide-react';
+import { Activity, Users, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
-export default function LecturerDashboardView({ sessions }) {
+export default function LecturerDashboardView({ sessions, isLoading }) {
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
+        <p className="text-muted-foreground">Loading dashboard data...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col p-8 bg-background overflow-y-auto">
       <div className="mb-8 flex items-center justify-between">
@@ -35,7 +45,7 @@ export default function LecturerDashboardView({ sessions }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="bg-card border border-border rounded-xl p-6 shadow-md hover:shadow-lg transition-all relative overflow-hidden"
+            className="bg-card border border-border rounded-xl p-6 shadow-md hover:shadow-lg transition-all relative overflow-hidden flex flex-col"
           >
             {session.progress === 100 && (
               <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 flex items-center justify-center rounded-bl-full">
@@ -44,39 +54,47 @@ export default function LecturerDashboardView({ sessions }) {
             )}
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-xl font-bold text-foreground">{session.groupName}</h3>
+                <h3 className="text-xl font-bold text-foreground truncate max-w-[200px]" title={session.groupName}>{session.groupName}</h3>
                 <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                   <Users className="w-4 h-4" /> Reviewed by {session.reviewer}
                 </p>
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium \${session.active ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${session.active ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                 {session.active ? 'In Progress' : 'Completed'}
               </span>
             </div>
             
-            <div className="mt-6">
+            <div className="mt-auto mb-6">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-muted-foreground">Review Progress</span>
                 <span className="font-medium text-foreground">{session.progress}%</span>
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                 <div 
-                  className={`h-full \${session.progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} 
-                  style={{ width: `\${session.progress}%` }}
+                  className={`h-full ${session.progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} 
+                  style={{ width: `${session.progress}%` }}
                 />
               </div>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-border flex justify-between items-center">
+            <div className="mt-auto pt-6 border-t border-border flex justify-between items-center">
               <button className="text-sm text-blue-500 font-medium hover:text-blue-400 transition-colors">
                 View Audit Report
               </button>
-              <button className="text-sm text-purple-500 font-medium hover:text-purple-400 transition-colors">
+              <Link to={`/workspace/${session.id}`} className="text-sm text-purple-500 font-medium hover:text-purple-400 transition-colors">
                 Join Session
-              </button>
+              </Link>
             </div>
           </motion.div>
         ))}
+        {sessions.length === 0 && (
+          <div className="col-span-full py-12 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl">
+            <p className="text-muted-foreground">No projects have been uploaded yet.</p>
+            <Link to="/upload" className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors">
+              Upload a Project
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -98,6 +98,17 @@ app.get('/api/projects/:projectId', async (req, res) => {
   }
 });
 
+// API Endpoint to get all projects
+app.get('/api/projects', async (req, res) => {
+  try {
+    const projects = await Project.find().sort({ uploadedAt: -1 });
+    res.json(projects);
+  } catch (error) {
+    console.error('Error fetching all projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
 // API Endpoint to get chat messages
 app.get('/api/projects/:projectId/messages', async (req, res) => {
   try {
