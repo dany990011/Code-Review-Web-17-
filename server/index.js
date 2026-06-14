@@ -109,6 +109,30 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
+// API Endpoint to delete a project
+app.delete('/api/projects/:projectId', async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    
+    // Delete associated messages
+    await Message.deleteMany({ projectId: req.params.projectId });
+    
+    // Delete the project
+    await Project.findByIdAndDelete(req.params.projectId);
+    
+    // Optionally delete the physical file
+    if (project.requirementsFilePath && fs.existsSync(project.requirementsFilePath)) {
+      fs.unlinkSync(project.requirementsFilePath);
+    }
+    
+    res.json({ success: true, message: 'Project deleted' });
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
 // API Endpoint to get chat messages
 app.get('/api/projects/:projectId/messages', async (req, res) => {
   try {
@@ -492,8 +516,14 @@ app.get('/api/projects/:projectId/github/file', async (req, res) => {
     const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${path}`);
     if (!fileRes.ok) return res.status(fileRes.status).json({ error: 'Failed to fetch file content' });
     
-    const content = await fileRes.text();
-    res.send(content);
+    const contentType = fileRes.headers.get('content-type');
+    if (contentType) {
+      res.set('Content-Type', contentType);
+    }
+    
+    const arrayBuffer = await fileRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.send(buffer);
   } catch (error) {
     console.error('GitHub API error:', error);
     res.status(500).json({ error: 'Failed to fetch GitHub file' });

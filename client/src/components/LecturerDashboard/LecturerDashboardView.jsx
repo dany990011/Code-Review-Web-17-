@@ -1,9 +1,9 @@
 import React from 'react';
-import { Activity, Users, CheckCircle, Loader2 } from 'lucide-react';
+import { Activity, Users, CheckCircle, Loader2, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
-export default function LecturerDashboardView({ sessions, isLoading }) {
+export default function LecturerDashboardView({ sessions, isLoading, deleteProject }) {
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-background">
@@ -12,6 +12,12 @@ export default function LecturerDashboardView({ sessions, isLoading }) {
       </div>
     );
   }
+
+  const handleDelete = (id) => {
+    if (window.confirm("Are you sure you want to delete this project? This cannot be undone.")) {
+      deleteProject(id);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col p-8 bg-background overflow-y-auto">
@@ -59,9 +65,18 @@ export default function LecturerDashboardView({ sessions, isLoading }) {
                   <Users className="w-4 h-4" /> Reviewed by {session.reviewer}
                 </p>
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${session.active ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                {session.active ? 'In Progress' : 'Completed'}
-              </span>
+              <div className="flex flex-col items-end gap-2 z-10">
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${session.active ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                  {session.active ? 'In Progress' : 'Completed'}
+                </span>
+                <button 
+                  onClick={() => handleDelete(session.id)}
+                  className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
+                  title="Delete Project"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             
             <div className="mt-auto mb-6">
@@ -69,11 +84,16 @@ export default function LecturerDashboardView({ sessions, isLoading }) {
                 <span className="text-muted-foreground">Review Progress</span>
                 <span className="font-medium text-foreground">{session.progress}%</span>
               </div>
-              <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+              <div className="h-2 w-full bg-muted rounded-full overflow-hidden mb-4">
                 <div 
                   className={`h-full ${session.progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} 
                   style={{ width: `${session.progress}%` }}
                 />
+              </div>
+              
+              <div className="flex justify-between items-center text-xs text-muted-foreground bg-background/50 p-2 rounded-lg border border-border/50">
+                <span>Created: {session.createdAt}</span>
+                <span>Updated: {session.updatedAt}</span>
               </div>
             </div>
 

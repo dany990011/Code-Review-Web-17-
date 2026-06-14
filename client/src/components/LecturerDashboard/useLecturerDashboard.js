@@ -4,12 +4,12 @@ export default function useLecturerDashboard() {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchProjects = () => {
+    setIsLoading(true);
     fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects`)
       .then(res => res.json())
       .then(data => {
         const mappedSessions = data.map(project => {
-          // Extract repo name from githubUrl
           let groupName = project.githubUrl;
           try {
             const parsed = new URL(project.githubUrl);
@@ -27,7 +27,7 @@ export default function useLecturerDashboard() {
           } else if (project.analysisResults && project.analysisResults.length > 0) {
             progress = 50;
           } else {
-            progress = 10; // Just uploaded
+            progress = 10;
           }
 
           return {
@@ -35,7 +35,9 @@ export default function useLecturerDashboard() {
             groupName: groupName,
             reviewer: 'Anonymous Student',
             progress: progress,
-            active: progress < 100
+            active: progress < 100,
+            createdAt: new Date(project.uploadedAt).toLocaleDateString(),
+            updatedAt: project.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : new Date(project.uploadedAt).toLocaleDateString()
           };
         });
         setSessions(mappedSessions);
@@ -45,10 +47,30 @@ export default function useLecturerDashboard() {
         console.error('Failed to fetch projects:', err);
         setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchProjects();
   }, []);
+
+  const deleteProject = async (projectId) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        setSessions(prev => prev.filter(s => s.id !== projectId));
+      } else {
+        console.error('Failed to delete project');
+      }
+    } catch (err) {
+      console.error('Error deleting project:', err);
+    }
+  };
 
   return {
     sessions,
-    isLoading
+    isLoading,
+    deleteProject
   };
 }

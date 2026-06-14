@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-export default function CodeViewer({ content, filename, selectedLine, onLineClick }) {
+export default function CodeViewer({ content, filename, selectedLine, onLineClick, projectId }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +34,33 @@ export default function CodeViewer({ content, filename, selectedLine, onLineClic
     };
     return map[ext] || 'javascript';
   };
+
+  if (content === '__IMAGE__') {
+    const imageUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/github/file?path=${encodeURIComponent(filename)}`;
+    return (
+      <div className="flex flex-col h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm overflow-hidden">
+        <div className="flex items-center px-4 py-2 border-b border-[#333333] bg-[#252526] text-xs font-semibold text-[#cccccc]">
+          {filename}
+        </div>
+        <div className="flex-1 flex items-center justify-center overflow-auto p-4 bg-black/20">
+          <img src={imageUrl} alt={filename} className="max-w-full max-h-full object-contain shadow-2xl rounded-sm" />
+        </div>
+      </div>
+    );
+  }
+
+  if (content === '__UNKNOWN_FILE__') {
+    return (
+      <div className="flex flex-col h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm overflow-hidden">
+        <div className="flex items-center px-4 py-2 border-b border-[#333333] bg-[#252526] text-xs font-semibold text-[#cccccc]">
+          {filename}
+        </div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground p-4">
+          Cannot preview this file type.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm overflow-hidden">

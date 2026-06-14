@@ -91,10 +91,10 @@ export default function Checklist({ items, onToggle, analysisResults = [], isAna
                   {result.offendingFile && (
                     <button 
                       onClick={(e) => handleViewIssue(e, result)}
-                      className="text-xs flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition-colors bg-blue-500/10 px-2 py-1 rounded"
+                      className="mt-2 w-full text-sm flex items-center justify-center gap-2 text-blue-50 bg-blue-600 hover:bg-blue-500 transition-all px-4 py-2.5 rounded-md font-semibold shadow-md border border-blue-500/50 active:scale-[0.98]"
                     >
-                      <FileCode2 className="w-3 h-3" />
-                      View Issue {result.offendingLine ? `(Line ${result.offendingLine})` : ''}
+                      <FileCode2 className="w-4 h-4" />
+                      View Issue in Code {result.offendingLine ? `(Line ${result.offendingLine})` : ''}
                     </button>
                   )}
                 </div>

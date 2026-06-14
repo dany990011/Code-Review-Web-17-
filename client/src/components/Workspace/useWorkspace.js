@@ -88,6 +88,20 @@ export default function useWorkspace() {
 
     setActiveFile(cleanPath);
     setSelectedLine(null);
+    const ext = cleanPath.split('.').pop().toLowerCase();
+    const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'];
+    const knownCodeExts = ['js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'md', 'txt', 'yml', 'yaml', 'env', 'gitignore', 'sh', 'xml', 'java', 'c', 'cpp', 'h', 'cs', 'rb', 'go', 'rs', 'php', 'sql', 'config'];
+
+    if (imageExts.includes(ext)) {
+      setFileContent('__IMAGE__');
+      return;
+    }
+
+    if (!knownCodeExts.includes(ext) && cleanPath.includes('.')) {
+      setFileContent('__UNKNOWN_FILE__');
+      return;
+    }
+
     setFileContent(`// Loading ${cleanPath}...`);
     
     try {

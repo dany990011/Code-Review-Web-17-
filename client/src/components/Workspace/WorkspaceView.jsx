@@ -36,6 +36,7 @@ export default function WorkspaceView(props) {
             filename={props.activeFile}
             selectedLine={props.selectedLine}
             onLineClick={props.handleLineClick}
+            projectId={props.projectId}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
