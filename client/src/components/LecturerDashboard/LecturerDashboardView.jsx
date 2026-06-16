@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
 export default function LecturerDashboardView({ sessions, isLoading, deleteProject }) {
+  const [reportSession, setReportSession] = React.useState(null);
+
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-background">
@@ -20,7 +22,7 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
   };
 
   return (
-    <div className="flex-1 flex flex-col p-8 bg-background overflow-y-auto">
+    <div className="flex-1 flex flex-col p-8 bg-background overflow-y-auto relative">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-foreground">Lecturer Dashboard</h2>
@@ -98,7 +100,10 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
             </div>
 
             <div className="mt-auto pt-6 border-t border-border flex justify-between items-center">
-              <button className="text-sm text-blue-500 font-medium hover:text-blue-400 transition-colors">
+              <button 
+                onClick={() => setReportSession(session)}
+                className="text-sm text-blue-500 font-medium hover:text-blue-400 transition-colors"
+              >
                 View Audit Report
               </button>
               <Link to={`/workspace/${session.id}`} className="text-sm text-purple-500 font-medium hover:text-purple-400 transition-colors">
@@ -116,6 +121,78 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
           </div>
         )}
       </div>
+
+      {reportSession && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-8">
+          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-3xl w-full max-h-full flex flex-col overflow-hidden">
+            <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">Audit Report: {reportSession.groupName}</h3>
+                <p className="text-muted-foreground text-sm mt-1">Detailed breakdown of AI findings vs. Student overrides</p>
+              </div>
+              <button 
+                onClick={() => setReportSession(null)}
+                className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              <div className="mb-6">
+                <h4 className="font-semibold mb-2">Checklist Progress</h4>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500" 
+                      style={{ width: `${(reportSession.rawProject?.checkedChecklistIds?.length || 0) / 12 * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-bold">{reportSession.rawProject?.checkedChecklistIds?.length || 0} / 12</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Items checked off by student</p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-4 border-b border-border pb-2">Identified Issues & Overrides</h4>
+                {!reportSession.rawProject?.analysisResults?.length ? (
+                  <p className="text-sm text-muted-foreground italic">No analysis results available.</p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {reportSession.rawProject.analysisResults.map((result, i) => {
+                      const isOverridden = reportSession.rawProject.studentOverrides?.[result.category]?.isNonIssue;
+                      return (
+                        <div key={i} className={`p-4 rounded-lg border ${isOverridden ? 'bg-blue-500/5 border-blue-500/30' : 'bg-muted/20 border-border'}`}>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-semibold text-foreground">{result.category}</span>
+                            {isOverridden ? (
+                              <span className="text-xs px-2 py-1 bg-blue-500/20 text-blue-500 rounded font-bold">STUDENT OVERRIDE: False Positive</span>
+                            ) : (
+                              <span className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded font-bold">Score: {result.rating} / 10</span>
+                            )}
+                          </div>
+                          <p className={`text-sm ${isOverridden ? 'text-muted-foreground line-through opacity-70' : 'text-foreground'}`}>
+                            {result.reasoning}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-border bg-muted/30 flex justify-end">
+              <button 
+                onClick={() => setReportSession(null)}
+                className="px-6 py-2 bg-blue-500 text-white font-medium rounded hover:bg-blue-600 transition-colors"
+              >
+                Close Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

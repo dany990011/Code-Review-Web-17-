@@ -22,12 +22,8 @@ export default function useLecturerDashboard() {
           }
 
           let progress = 0;
-          if (project.requirementsCheckResults) {
-            progress = 100;
-          } else if (project.analysisResults && project.analysisResults.length > 0) {
-            progress = 50;
-          } else {
-            progress = 10;
+          if (project.checkedChecklistIds && Array.isArray(project.checkedChecklistIds)) {
+            progress = Math.round((project.checkedChecklistIds.length / 12) * 100);
           }
 
           return {
@@ -37,7 +33,8 @@ export default function useLecturerDashboard() {
             progress: progress,
             active: progress < 100,
             createdAt: new Date(project.uploadedAt).toLocaleDateString(),
-            updatedAt: project.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : new Date(project.uploadedAt).toLocaleDateString()
+            updatedAt: project.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : new Date(project.uploadedAt).toLocaleDateString(),
+            rawProject: project
           };
         });
         setSessions(mappedSessions);

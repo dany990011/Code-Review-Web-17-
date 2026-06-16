@@ -90,6 +90,8 @@ export default function WorkspaceView(props) {
               items={props.checklist}
               onToggle={props.toggleChecklistCategory}
               analysisResults={props.analysisResults}
+              studentOverrides={props.studentOverrides}
+              markAsNonIssue={props.markAsNonIssue}
               isAnalyzing={props.isAnalyzing}
               runAnalysis={props.runAnalysis}
               onFileSelect={props.handleFileSelect}

@@ -84,7 +84,7 @@ export default function AIChat({ messages, onSendMessage, selectedLine, activeFi
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={selectedLine ? `Ask about line \${selectedLine}...` : "Ask a question..."}
+            placeholder={selectedLine ? `Ask about line ${selectedLine}...` : "Ask a question..."}
             className="w-full bg-muted border border-border text-foreground rounded-full pl-4 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
           <button 

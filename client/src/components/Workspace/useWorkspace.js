@@ -12,6 +12,7 @@ export default function useWorkspace() {
   const [analysisResults, setAnalysisResults] = useState([]);
   const [project, setProject] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [studentOverrides, setStudentOverrides] = useState({});
   const [checklist, setChecklist] = useState([
     { id: 1, category: 'Security', checked: false },
     { id: 2, category: 'Performance', checked: false },
@@ -48,6 +49,15 @@ export default function useWorkspace() {
             if (data.analysisResults) {
               setAnalysisResults(data.analysisResults);
             }
+            if (data.studentOverrides) {
+              setStudentOverrides(data.studentOverrides);
+            }
+            if (data.checkedChecklistIds) {
+              setChecklist(prev => prev.map(item => ({
+                ...item,
+                checked: data.checkedChecklistIds.includes(item.id)
+              })));
+            }
           }
         })
         .catch(err => console.error("Error fetching project:", err));
@@ -62,7 +72,7 @@ export default function useWorkspace() {
             setChatMessages(data);
           } else {
             // First time load, save initial bot message
-            const initialMsg = { role: 'assistant', content: "Welcome to the review session. Let's start by looking at the code. What do you notice?" };
+            const initialMsg = { role: 'assistant', content: "Welcome to the code review session! Please select a file or a specific line from the workspace to start discussing it." };
             fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/messages`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -71,8 +81,34 @@ export default function useWorkspace() {
             setChatMessages([initialMsg]);
           }
         })
-        .catch(err => console.error("Error fetching messages:", err));
+        .catch(err => console.error('Failed to load chat history:', err));
     }
+  }, [projectId]);
+
+  // Live updates (Polling)
+  useEffect(() => {
+    if (!projectId) return;
+    
+    const intervalId = setInterval(() => {
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            if (data.checkedChecklistIds) {
+              setChecklist(prev => prev.map(item => ({
+                ...item,
+                checked: data.checkedChecklistIds.includes(item.id)
+              })));
+            }
+            if (data.studentOverrides) {
+              setStudentOverrides(data.studentOverrides);
+            }
+          }
+        })
+        .catch(() => {}); // silently ignore polling errors
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(intervalId);
   }, [projectId]);
 
   const handleFileSelect = async (file, lineToSelect = null) => {
@@ -186,7 +222,34 @@ export default function useWorkspace() {
   };
 
   const toggleChecklistCategory = (id) => {
-    setChecklist(prev => prev.map(item => item.id === id ? { ...item, checked: !item.checked } : item));
+    setChecklist(prev => {
+      const next = prev.map(item => item.id === id ? { ...item, checked: !item.checked } : item);
+      
+      // Sync to backend
+      const checkedIds = next.filter(i => i.checked).map(i => i.id);
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkedChecklistIds: checkedIds })
+      }).catch(err => console.error('Error syncing checklist:', err));
+      
+      return next;
+    });
+  };
+
+  const markAsNonIssue = (categoryName) => {
+    setStudentOverrides(prev => {
+      const next = { ...prev, [categoryName]: { isNonIssue: true } };
+      
+      // Sync to backend
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentOverrides: next })
+      }).catch(err => console.error('Error syncing overrides:', err));
+      
+      return next;
+    });
   };
 
   return {
@@ -198,10 +261,12 @@ export default function useWorkspace() {
     selectedLine,
     chatMessages,
     checklist,
+    studentOverrides,
     handleFileSelect,
     handleLineClick,
     handleSendMessage,
     toggleChecklistCategory,
+    markAsNonIssue,
     isChatLoading,
     analysisResults,
     isAnalyzing,

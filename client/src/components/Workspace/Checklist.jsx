@@ -2,7 +2,7 @@ import React from 'react';
 import { CheckCircle2, Circle, Play, Loader2, FileCode2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function Checklist({ items, onToggle, analysisResults = [], isAnalyzing, runAnalysis, onFileSelect, onLineClick }) {
+export default function Checklist({ items, onToggle, analysisResults = [], studentOverrides = {}, markAsNonIssue, isAnalyzing, runAnalysis, onFileSelect, onLineClick }) {
   const completedCount = items.filter(i => i.checked).length;
   const progress = (completedCount / items.length) * 100;
 
@@ -55,6 +55,7 @@ export default function Checklist({ items, onToggle, analysisResults = [], isAna
       <div className="flex-1 overflow-y-auto p-2">
         {items.map((item, idx) => {
           const result = analysisResults?.find(r => r.category.toLowerCase() === item.category.toLowerCase());
+          const isOverridden = studentOverrides[item.category]?.isNonIssue;
           
           return (
             <motion.div
@@ -77,8 +78,8 @@ export default function Checklist({ items, onToggle, analysisResults = [], isAna
                   </span>
                 </div>
                 {result && (
-                  <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getScoreColor(result.rating)}`}>
-                    {result.rating} / 10
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold border ${isOverridden ? 'text-blue-400 bg-blue-900 border-blue-500' : getScoreColor(result.rating)}`}>
+                    {isOverridden ? '10 / 10 (Override)' : `${result.rating} / 10`}
                   </span>
                 )}
               </div>
@@ -88,15 +89,29 @@ export default function Checklist({ items, onToggle, analysisResults = [], isAna
                   <p className="text-xs text-muted-foreground mb-2 leading-relaxed">
                     {result.reasoning}
                   </p>
-                  {result.offendingFile && (
-                    <button 
-                      onClick={(e) => handleViewIssue(e, result)}
-                      className="mt-2 w-full text-sm flex items-center justify-center gap-2 text-blue-50 bg-blue-600 hover:bg-blue-500 transition-all px-4 py-2.5 rounded-md font-semibold shadow-md border border-blue-500/50 active:scale-[0.98]"
-                    >
-                      <FileCode2 className="w-4 h-4" />
-                      View Issue in Code {result.offendingLine ? `(Line ${result.offendingLine})` : ''}
-                    </button>
-                  )}
+                  <div className="flex flex-col gap-3 mt-3">
+                    {result.offendingFile && (
+                      <button 
+                        onClick={(e) => handleViewIssue(e, result)}
+                        className="w-full text-sm flex items-center justify-center gap-2 text-blue-50 bg-blue-600 hover:bg-blue-500 transition-all px-4 py-2.5 rounded-md font-semibold shadow-md border border-blue-500/50 active:scale-[0.98]"
+                      >
+                        <FileCode2 className="w-4 h-4" />
+                        View Issue in Code {result.offendingLine ? `(Line ${result.offendingLine})` : ''}
+                      </button>
+                    )}
+                    
+                    {!isOverridden && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsNonIssue(item.category);
+                        }}
+                        className="w-full text-sm flex items-center justify-center font-medium text-foreground bg-muted/50 hover:bg-muted border border-border transition-all px-4 py-2 rounded-md shadow-sm active:scale-[0.98]"
+                      >
+                        Mark as False Positive / Non-Issue
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </motion.div>

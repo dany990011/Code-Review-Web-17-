@@ -24,6 +24,14 @@ const ProjectSchema = new mongoose.Schema({
   requirementsCheckResults: {
     type: Object,
     default: null
+  },
+  checkedChecklistIds: {
+    type: [Number],
+    default: []
+  },
+  studentOverrides: {
+    type: Object,
+    default: {}
   }
 }, { timestamps: true });
 

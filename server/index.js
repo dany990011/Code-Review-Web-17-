@@ -133,6 +133,33 @@ app.delete('/api/projects/:projectId', async (req, res) => {
   }
 });
 
+// API Endpoint to update project (for checklist and overrides)
+app.patch('/api/projects/:projectId', express.json(), async (req, res) => {
+  try {
+    const { checkedChecklistIds, studentOverrides } = req.body;
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    
+    if (checkedChecklistIds !== undefined) {
+      project.checkedChecklistIds = checkedChecklistIds;
+    }
+    if (studentOverrides !== undefined) {
+      project.studentOverrides = studentOverrides;
+    }
+    
+    // We use markModified because studentOverrides is of type Object
+    if (studentOverrides !== undefined) {
+      project.markModified('studentOverrides');
+    }
+    
+    await project.save();
+    res.json(project);
+  } catch (error) {
+    console.error('Error updating project:', error);
+    res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
 // API Endpoint to get chat messages
 app.get('/api/projects/:projectId/messages', async (req, res) => {
   try {
@@ -185,7 +212,7 @@ app.post('/api/projects/:projectId/chat', async (req, res) => {
     // 3. Initialize Gemini Chat Session
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: "You are a Socratic Code Review tutor. Never give direct answers. Ask guiding questions to help the student find bugs and improve code quality.",
+      systemInstruction: "You are a Socratic Code Review tutor. Never give direct answers. Ask guiding questions to help the student find bugs and improve code quality. If the user asks a general coding question but hasn't selected a file or line of code (which will be indicated in the System Context), politely ask them to click on a specific file or line number in the workspace so you can discuss it together.",
     });
 
     const chat = model.startChat({
