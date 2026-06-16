@@ -100,17 +100,19 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
                       </button>
                     )}
                     
-                    {!isOverridden && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          markAsNonIssue(item.category);
-                        }}
-                        className="w-full text-sm flex items-center justify-center font-medium text-foreground bg-muted/50 hover:bg-muted border border-border transition-all px-4 py-2 rounded-md shadow-sm active:scale-[0.98]"
-                      >
-                        Mark as False Positive / Non-Issue
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markAsNonIssue(item.category);
+                      }}
+                      className={`w-full text-sm flex items-center justify-center font-medium transition-all px-4 py-2 rounded-md shadow-sm active:scale-[0.98] border ${
+                        isOverridden 
+                          ? 'text-yellow-600 bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/50' 
+                          : 'text-foreground bg-muted/50 hover:bg-muted border-border'
+                      }`}
+                    >
+                      {isOverridden ? 'Unmark as AI false detection' : 'Mark as AI false detection'}
+                    </button>
                   </div>
                 </div>
               )}

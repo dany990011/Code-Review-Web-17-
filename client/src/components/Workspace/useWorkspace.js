@@ -239,7 +239,14 @@ export default function useWorkspace() {
 
   const markAsNonIssue = (categoryName) => {
     setStudentOverrides(prev => {
-      const next = { ...prev, [categoryName]: { isNonIssue: true } };
+      const isCurrentlyOverridden = prev[categoryName]?.isNonIssue;
+      const next = { ...prev };
+      
+      if (isCurrentlyOverridden) {
+        delete next[categoryName]; // Remove the override entirely if it was true
+      } else {
+        next[categoryName] = { isNonIssue: true }; // Add the override
+      }
       
       // Sync to backend
       fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`, {

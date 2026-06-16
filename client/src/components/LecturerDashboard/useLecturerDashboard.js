@@ -4,8 +4,8 @@ export default function useLecturerDashboard() {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProjects = () => {
-    setIsLoading(true);
+  const fetchProjects = (silent = false) => {
+    if (!silent) setIsLoading(true);
     fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects`)
       .then(res => res.json())
       .then(data => {
@@ -50,7 +50,7 @@ export default function useLecturerDashboard() {
     fetchProjects();
 
     const intervalId = setInterval(() => {
-      fetchProjects();
+      fetchProjects(true);
     }, 3000);
 
     return () => clearInterval(intervalId);
