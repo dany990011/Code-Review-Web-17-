@@ -32,8 +32,8 @@ export default function useLecturerDashboard() {
             reviewer: 'Anonymous Student',
             progress: progress,
             active: progress < 100,
-            createdAt: new Date(project.uploadedAt).toLocaleDateString(),
-            updatedAt: project.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : new Date(project.uploadedAt).toLocaleDateString(),
+            createdAt: new Date(project.uploadedAt).toLocaleDateString('en-GB'),
+            updatedAt: project.updatedAt ? new Date(project.updatedAt).toLocaleDateString('en-GB') : new Date(project.uploadedAt).toLocaleDateString('en-GB'),
             rawProject: project
           };
         });
@@ -48,6 +48,12 @@ export default function useLecturerDashboard() {
 
   useEffect(() => {
     fetchProjects();
+
+    const intervalId = setInterval(() => {
+      fetchProjects();
+    }, 3000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   const deleteProject = async (projectId) => {
