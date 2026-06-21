@@ -51,19 +51,22 @@ router.post('/:projectId/analyze', async (req, res) => {
       !item.path.includes('build')
     );
 
-    // Take top 15 files (arbitrary limit to avoid massive context)
-    const filesToAnalyze = files.slice(0, 15);
+    // Analyze more files to get a comprehensive view
+    const filesToAnalyze = files.slice(0, 100);
     
-    // 2. Fetch code for these files
-    let fullCodebase = "";
-    for (const file of filesToAnalyze) {
+    // 2. Fetch code for these files concurrently for better performance
+    const filePromises = filesToAnalyze.map(async (file) => {
       const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${file.path}`);
       if (fileRes.ok) {
         const code = await fileRes.text();
         const numberedCode = code.split('\n').map((line, i) => `${i + 1}: ${line}`).join('\n');
-        fullCodebase += `\n--- FILE: ${file.path} ---\n${numberedCode}\n`;
+        return `\n--- FILE: ${file.path} ---\n${numberedCode}\n`;
       }
-    }
+      return "";
+    });
+
+    const fileContents = await Promise.all(filePromises);
+    const fullCodebase = fileContents.join('');
 
     // 3. Prepare AI Prompt
     const prompt = `You are a strict technical code reviewer grading a student project.
@@ -79,7 +82,7 @@ For each category, provide:
 Return ONLY a valid JSON array of exactly 12 objects, each containing: category, rating, reasoning, offendingFile, offendingLine.
 
 Codebase:
-${fullCodebase.slice(0, 50000)} // Hard cap at 50k chars for safety
+${fullCodebase.slice(0, 1000000)} // Increased cap to 1 million characters to support full codebase
 `;
 
     // 4. Run AI Analysis
