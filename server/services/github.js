@@ -3,7 +3,20 @@ function parseGithubUrl(url) {
     const parsed = new URL(url);
     const parts = parsed.pathname.split('/').filter(Boolean);
     if (parts.length >= 2) {
-      return { owner: parts[0], repo: parts[1].replace('.git', '') };
+      let branch = null;
+      let subpath = null;
+      
+      if (parts.length >= 4 && parts[2] === 'tree') {
+        branch = parts[3];
+        subpath = parts.slice(4).join('/') || null;
+      }
+      
+      return { 
+        owner: parts[0], 
+        repo: parts[1].replace('.git', ''),
+        branch,
+        subpath
+      };
     }
   } catch (e) {
     return null;

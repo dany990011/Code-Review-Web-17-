@@ -7,7 +7,8 @@ const ChecklistComment = ({ initialValue, onSave }) => {
   const [isSaved, setIsSaved] = React.useState(false);
 
   const handleSave = (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
+    if (value === savedValue && !isSaved) return;
     onSave(value);
     setSavedValue(value);
     setIsSaved(true);
@@ -24,6 +25,11 @@ const ChecklistComment = ({ initialValue, onSave }) => {
           onChange={(e) => {
             setValue(e.target.value);
             setIsSaved(false);
+          }}
+          onBlur={() => {
+            if (value !== savedValue) {
+              handleSave();
+            }
           }}
           onClick={(e) => e.stopPropagation()}
         />

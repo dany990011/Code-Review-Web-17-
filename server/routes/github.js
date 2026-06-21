@@ -16,7 +16,7 @@ router.get('/:projectId/github/tree', async (req, res) => {
     const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
     if (!repoRes.ok) return res.status(repoRes.status).json({ error: 'Failed to fetch repo info' });
     const repoData = await repoRes.json();
-    const branch = repoData.default_branch || 'main';
+    const branch = repoInfo.branch || repoData.default_branch || 'main';
 
     // 2. Get tree (recursive)
     const treeRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`);
@@ -27,7 +27,18 @@ router.get('/:projectId/github/tree', async (req, res) => {
     const tree = [];
     const map = {};
 
-    treeData.tree.forEach(item => {
+    let flatTree = treeData.tree;
+    if (repoInfo.subpath) {
+      const prefix = repoInfo.subpath + '/';
+      flatTree = flatTree
+        .filter(item => item.path.startsWith(prefix))
+        .map(item => ({
+          ...item,
+          path: item.path.substring(prefix.length)
+        }));
+    }
+
+    flatTree.forEach(item => {
       const parts = item.path.split('/');
       const name = parts.pop();
       const parentPath = parts.join('/');
@@ -77,10 +88,14 @@ router.get('/:projectId/github/file', async (req, res) => {
     const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
     if (!repoRes.ok) return res.status(repoRes.status).json({ error: 'Failed to fetch repo info' });
     const repoData = await repoRes.json();
-    const branch = repoData.default_branch || 'main';
+    const branch = repoInfo.branch || repoData.default_branch || 'main';
 
     // 2. Fetch raw file
-    const fileUrl = `https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${filePath}`;
+    let actualPath = filePath;
+    if (repoInfo.subpath) {
+      actualPath = `${repoInfo.subpath}/${filePath}`;
+    }
+    const fileUrl = `https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${actualPath}`;
     const fileRes = await githubFetch(fileUrl);
     
     if (!fileRes.ok) {

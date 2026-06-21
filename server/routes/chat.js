@@ -90,8 +90,12 @@ router.post('/:projectId/chat', express.json(), async (req, res) => {
           const repoInfo = parseGithubUrl(project.githubUrl);
           const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
           const repoData = await repoRes.json();
-          const branch = repoData.default_branch || 'main';
-          const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${activeFile}`);
+          const branch = repoInfo.branch || repoData.default_branch || 'main';
+          let actualPath = activeFile;
+          if (repoInfo.subpath) {
+            actualPath = `${repoInfo.subpath}/${activeFile}`;
+          }
+          const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${actualPath}`);
           if (fileRes.ok) {
             const rawCode = await fileRes.text();
             const numberedCode = rawCode.split('\n').map((line, i) => `${i + 1}: ${line}`).join('\n');

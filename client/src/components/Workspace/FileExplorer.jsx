@@ -9,8 +9,8 @@ const FileTreeNode = ({ node, level, activeFile, onFileSelect }) => {
   return (
     <div className="w-full">
       <div 
-        className={`flex items-center py-1.5 px-2 hover:bg-muted/50 cursor-pointer rounded-md text-sm transition-colors \${activeFile === node.path ? 'bg-blue-500/10 text-blue-500' : 'text-foreground'}`}
-        style={{ paddingLeft: `\${level * 12 + 8}px` }}
+        className={`flex items-center py-1.5 px-2 hover:bg-muted/50 cursor-pointer rounded-md text-sm transition-colors ${activeFile === node.path ? 'bg-blue-500/10 text-blue-500' : 'text-foreground'}`}
+        style={{ paddingLeft: `${level * 20 + 8}px` }}
         onClick={() => isDir ? setIsOpen(!isOpen) : onFileSelect(node)}
       >
         {isDir ? (
@@ -24,7 +24,11 @@ const FileTreeNode = ({ node, level, activeFile, onFileSelect }) => {
       </div>
       
       {isDir && isOpen && node.children && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative">
+          <div 
+            className="absolute top-0 bottom-0 w-px bg-border/50" 
+            style={{ left: `${level * 20 + 26}px` }} 
+          />
           {node.children.map((child, idx) => (
             <FileTreeNode key={idx} node={child} level={level + 1} activeFile={activeFile} onFileSelect={onFileSelect} />
           ))}

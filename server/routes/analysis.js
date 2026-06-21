@@ -35,7 +35,7 @@ router.post('/:projectId/analyze', async (req, res) => {
     const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
     if (!repoRes.ok) return res.status(repoRes.status).json({ error: 'Failed to fetch repo info' });
     const repoData = await repoRes.json();
-    const branch = repoData.default_branch || 'main';
+    const branch = repoInfo.branch || repoData.default_branch || 'main';
 
     const treeRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`);
     if (!treeRes.ok) return res.status(treeRes.status).json({ error: 'Failed to fetch repo tree' });
@@ -43,7 +43,7 @@ router.post('/:projectId/analyze', async (req, res) => {
 
     // Filter to code files only
     const validExtensions = ['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c', '.go', '.rb', '.php', '.html', '.css', '.json'];
-    const files = treeData.tree.filter(item => 
+    let files = treeData.tree.filter(item => 
       item.type === 'blob' && 
       validExtensions.some(ext => item.path.endsWith(ext)) &&
       !item.path.includes('node_modules') &&
@@ -51,12 +51,25 @@ router.post('/:projectId/analyze', async (req, res) => {
       !item.path.includes('build')
     );
 
+    if (repoInfo.subpath) {
+      const prefix = repoInfo.subpath + '/';
+      files = files
+        .filter(item => item.path.startsWith(prefix))
+        .map(item => ({
+          ...item,
+          fullPath: item.path,
+          path: item.path.substring(prefix.length)
+        }));
+    } else {
+      files = files.map(item => ({ ...item, fullPath: item.path }));
+    }
+
     // Analyze more files to get a comprehensive view
     const filesToAnalyze = files.slice(0, 100);
     
     // 2. Fetch code for these files concurrently for better performance
     const filePromises = filesToAnalyze.map(async (file) => {
-      const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${file.path}`);
+      const fileRes = await githubFetch(`https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${file.fullPath}`);
       if (fileRes.ok) {
         const code = await fileRes.text();
         const numberedCode = code.split('\n').map((line, i) => `${i + 1}: ${line}`).join('\n');
