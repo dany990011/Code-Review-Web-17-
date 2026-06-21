@@ -7,6 +7,7 @@ export default function useWorkspace() {
   const [activeFile, setActiveFile] = useState(null);
   const [fileContent, setFileContent] = useState('// Select a file to view its contents');
   const [selectedLine, setSelectedLine] = useState(null);
+  const [jumpToLine, setJumpToLine] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [analysisResults, setAnalysisResults] = useState([]);
@@ -45,6 +46,19 @@ export default function useWorkspace() {
         .then(res => res.json())
         .then(data => {
           if (data) {
+            let groupName = data.githubUrl || 'Project';
+            try {
+              const parsed = new URL(data.githubUrl);
+              const parts = parsed.pathname.split('/').filter(Boolean);
+              if (parts.length > 0) {
+                groupName = parts[parts.length - 1].replace('.git', '');
+              }
+            } catch (e) {
+              const parts = groupName.split('/').filter(Boolean);
+              if (parts.length > 0) groupName = parts[parts.length - 1].replace('.git', '');
+            }
+            data.groupName = groupName;
+            
             setProject(data);
             if (data.analysisResults) {
               setAnalysisResults(data.analysisResults);
@@ -111,7 +125,7 @@ export default function useWorkspace() {
     return () => clearInterval(intervalId);
   }, [projectId]);
 
-  const handleFileSelect = async (file, lineToSelect = null) => {
+  const handleFileSelect = async (file, lineToSelect = null, shouldHighlight = true) => {
     if (!file || !file.path) return;
     
     let cleanPath = file.path.replace(/^(\.\/|\/+)/, '');
@@ -123,7 +137,10 @@ export default function useWorkspace() {
     }
 
     setActiveFile(cleanPath);
-    setSelectedLine(null);
+    if (!lineToSelect || shouldHighlight) {
+      setSelectedLine(null);
+    }
+    setJumpToLine(null);
     const ext = cleanPath.split('.').pop().toLowerCase();
     const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'];
     const knownCodeExts = ['js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'md', 'txt', 'yml', 'yaml', 'env', 'gitignore', 'sh', 'xml', 'java', 'c', 'cpp', 'h', 'cs', 'rb', 'go', 'rs', 'php', 'sql', 'config'];
@@ -145,7 +162,14 @@ export default function useWorkspace() {
       if (response.ok) {
         const content = await response.text();
         setFileContent(content);
-        if (lineToSelect) setSelectedLine(lineToSelect);
+        if (lineToSelect) {
+          if (shouldHighlight) {
+            setSelectedLine(lineToSelect);
+          } else {
+            setJumpToLine(lineToSelect);
+            setSelectedLine(null);
+          }
+        }
       } else {
         setFileContent(`// Error: The AI identified '${cleanPath}', but this file could not be found in the repository.`);
       }
@@ -259,6 +283,22 @@ export default function useWorkspace() {
     });
   };
 
+  const saveChecklistComment = (categoryName, comment) => {
+    setStudentOverrides(prev => {
+      const existing = prev[categoryName] || {};
+      const next = { ...prev, [categoryName]: { ...existing, comment } };
+      
+      // Sync to backend
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentOverrides: next })
+      }).catch(err => console.error('Error syncing overrides:', err));
+      
+      return next;
+    });
+  };
+
   return {
     projectId,
     project,
@@ -266,6 +306,7 @@ export default function useWorkspace() {
     activeFile,
     fileContent,
     selectedLine,
+    jumpToLine,
     chatMessages,
     checklist,
     studentOverrides,
@@ -274,6 +315,7 @@ export default function useWorkspace() {
     handleSendMessage,
     toggleChecklistCategory,
     markAsNonIssue,
+    saveChecklistComment,
     isChatLoading,
     analysisResults,
     isAnalyzing,

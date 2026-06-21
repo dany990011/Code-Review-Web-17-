@@ -1,15 +1,58 @@
 import React from 'react';
-import { CheckCircle2, Circle, Play, Loader2, FileCode2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { CheckCircle2, Circle, Play, Loader2, FileCode2, Save } from 'lucide-react';
 
-export default function Checklist({ items, onToggle, analysisResults = [], studentOverrides = {}, markAsNonIssue, isAnalyzing, runAnalysis, onFileSelect, onLineClick }) {
+const ChecklistComment = ({ initialValue, onSave }) => {
+  const [value, setValue] = React.useState(initialValue || '');
+  const [savedValue, setSavedValue] = React.useState(initialValue || '');
+  const [isSaved, setIsSaved] = React.useState(false);
+
+  const handleSave = (e) => {
+    e.stopPropagation();
+    onSave(value);
+    setSavedValue(value);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+  };
+
+  return (
+    <div className="px-4 pb-4">
+      <div className="relative">
+        <textarea
+          className="w-full text-sm p-2 rounded-md border border-border bg-background text-foreground placeholder-muted-foreground focus:ring-1 focus:ring-blue-500 focus:outline-none min-h-[60px] resize-y"
+          placeholder="Leave a comment or note about this checklist item..."
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setIsSaved(false);
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+        {(value !== savedValue || isSaved) && (
+          <button
+            onClick={handleSave}
+            className={`absolute bottom-2 right-2 p-1.5 rounded text-xs flex items-center gap-1 transition-colors ${
+              isSaved ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }`}
+          >
+            {isSaved ? <CheckCircle2 className="w-3 h-3" /> : <Save className="w-3 h-3" />}
+            {isSaved ? 'Saved' : 'Save'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+import { motion } from 'framer-motion';
+import { generateWorkspacePDF } from '../../utils/pdfGenerator';
+
+export default function Checklist({ items, onToggle, analysisResults = [], studentOverrides = {}, markAsNonIssue, saveChecklistComment, isAnalyzing, runAnalysis, onFileSelect, onLineClick, projectName }) {
   const completedCount = items.filter(i => i.checked).length;
   const progress = (completedCount / items.length) * 100;
 
   const handleViewIssue = (e, result) => {
     e.stopPropagation();
     if (result.offendingFile) {
-      onFileSelect({ path: result.offendingFile }, result.offendingLine);
+      onFileSelect({ path: result.offendingFile }, result.offendingLine, false);
     }
   };
 
@@ -25,7 +68,7 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
   };
 
   return (
-    <div className="flex flex-col h-full bg-card overflow-hidden">
+    <div className="flex flex-col h-full bg-card overflow-hidden print:!h-auto print:!overflow-visible print:!block">
       <div className="p-4 border-b border-border bg-muted/30">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-foreground">Socratic Scorecard</h3>
@@ -39,7 +82,15 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
           </button>
         </div>
         <div className="flex items-center justify-between mb-2">
-           <span className="text-sm font-medium">Review Progress</span>
+           <div className="flex items-center gap-3">
+             <span className="text-sm font-medium">Review Progress</span>
+             <button 
+               onClick={() => generateWorkspacePDF(items, analysisResults, studentOverrides, projectName)} 
+               className="px-2 py-1 bg-purple-500/10 text-purple-500 text-[10px] uppercase font-bold rounded hover:bg-purple-500/20 transition-colors print:hidden"
+             >
+               Download PDF
+             </button>
+           </div>
            <span className="text-sm font-normal text-muted-foreground">{completedCount} of {items.length}</span>
         </div>
         <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
@@ -52,7 +103,7 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto p-2 print:!overflow-visible print:!h-auto print:!block">
         {items.map((item, idx) => {
           const result = analysisResults?.find(r => r.category.toLowerCase() === item.category.toLowerCase());
           const isOverridden = studentOverrides[item.category]?.isNonIssue;
@@ -96,7 +147,7 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
                         className="w-full text-sm flex items-center justify-center gap-2 text-blue-50 bg-blue-600 hover:bg-blue-500 transition-all px-4 py-2.5 rounded-md font-semibold shadow-md border border-blue-500/50 active:scale-[0.98]"
                       >
                         <FileCode2 className="w-4 h-4" />
-                        View Issue in Code {result.offendingLine ? `(Line ${result.offendingLine})` : ''}
+                        View Issue in Code
                       </button>
                     )}
                     
@@ -116,6 +167,11 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
                   </div>
                 </div>
               )}
+              
+              <ChecklistComment 
+                initialValue={studentOverrides?.[item.category]?.comment || ''} 
+                onSave={(value) => saveChecklistComment && saveChecklistComment(item.category, value)} 
+              />
             </motion.div>
           );
         })}

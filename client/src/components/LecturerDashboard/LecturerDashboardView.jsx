@@ -2,6 +2,7 @@ import React from 'react';
 import { Activity, Users, CheckCircle, Loader2, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { generateAuditPDF } from '../../utils/pdfGenerator';
 
 export default function LecturerDashboardView({ sessions, isLoading, deleteProject }) {
   const [reportSession, setReportSession] = React.useState(null);
@@ -46,7 +47,7 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
         </div>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 print:hidden">
         {sessions.map((session, idx) => (
           <motion.div 
             key={session.id}
@@ -123,8 +124,8 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
       </div>
 
       {reportSession && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-8">
-          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-3xl w-full max-h-full flex flex-col overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-8 print:static print:bg-white print:p-0">
+          <div className="bg-card border border-border rounded-xl shadow-2xl max-w-3xl w-full max-h-full flex flex-col overflow-hidden print:shadow-none print:border-none print:max-w-none print:h-auto print:max-h-none print:overflow-visible">
             <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
               <div>
                 <h3 className="text-2xl font-bold text-foreground">Audit Report: {reportSession.groupName}</h3>
@@ -132,13 +133,13 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
               </div>
               <button 
                 onClick={() => setReportSession(null)}
-                className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted transition-colors"
+                className="text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted transition-colors print:hidden"
               >
                 ✕
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto">
+            <div id="audit-report-content" className="p-6 overflow-y-auto bg-card text-foreground print:overflow-visible">
               <div className="mb-6">
                 <h4 className="font-semibold mb-2">Checklist Progress</h4>
                 <div className="flex items-center gap-2 mb-1">
@@ -174,6 +175,12 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
                           <p className={`text-sm ${isOverridden ? 'text-muted-foreground line-through opacity-70' : 'text-foreground'}`}>
                             {result.reasoning}
                           </p>
+                          {reportSession.rawProject.studentOverrides?.[result.category]?.comment && (
+                            <div className="mt-3 p-3 bg-muted/30 border border-border rounded-md">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Student Comment:</p>
+                              <p className="text-sm text-foreground">{reportSession.rawProject.studentOverrides[result.category].comment}</p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -182,7 +189,15 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
               </div>
             </div>
             
-            <div className="p-4 border-t border-border bg-muted/30 flex justify-end">
+            <div className="p-4 border-t border-border bg-muted/30 flex justify-end gap-3 print:hidden">
+              <button 
+                onClick={() => {
+                  generateAuditPDF(reportSession.rawProject, reportSession.groupName);
+                }}
+                className="px-6 py-2 bg-purple-500 text-white font-medium rounded hover:bg-purple-600 transition-colors"
+              >
+                Download PDF
+              </button>
               <button 
                 onClick={() => setReportSession(null)}
                 className="px-6 py-2 bg-blue-500 text-white font-medium rounded hover:bg-blue-600 transition-colors"

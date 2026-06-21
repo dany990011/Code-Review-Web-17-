@@ -14,11 +14,12 @@ export default function useLecturerDashboard() {
           try {
             const parsed = new URL(project.githubUrl);
             const parts = parsed.pathname.split('/').filter(Boolean);
-            if (parts.length >= 2) {
-              groupName = `${parts[0]}/${parts[1].replace('.git', '')}`;
+            if (parts.length > 0) {
+              groupName = parts[parts.length - 1].replace('.git', '');
             }
           } catch (e) {
-            // ignore
+            const parts = groupName.split('/').filter(Boolean);
+            if (parts.length > 0) groupName = parts[parts.length - 1].replace('.git', '');
           }
 
           let progress = 0;

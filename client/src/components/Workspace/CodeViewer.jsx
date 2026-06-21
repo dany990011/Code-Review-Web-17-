@@ -2,20 +2,21 @@ import React, { useEffect, useRef } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-export default function CodeViewer({ content, filename, selectedLine, onLineClick, projectId }) {
+export default function CodeViewer({ content, filename, selectedLine, jumpToLine, onLineClick, projectId }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
-    if (selectedLine && containerRef.current) {
+    const lineToScroll = selectedLine || jumpToLine;
+    if (lineToScroll && containerRef.current) {
       // Small timeout to ensure DOM is rendered before scrolling
       setTimeout(() => {
-        const lineEl = containerRef.current.querySelector(`#code-line-${selectedLine}`);
+        const lineEl = containerRef.current.querySelector(`#code-line-${lineToScroll}`);
         if (lineEl) {
           lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 50);
     }
-  }, [selectedLine, content]);
+  }, [selectedLine, jumpToLine, content]);
 
   // Determine language based on file extension
   const getLanguage = (file) => {

@@ -11,10 +11,10 @@ export default function WorkspaceView(props) {
   const [activeRightPanel, setActiveRightPanel] = useState('chat');
 
   return (
-    <Group direction="horizontal" className="flex-1 h-full w-full overflow-hidden bg-background">
+    <Group direction="horizontal" className="flex-1 h-full w-full overflow-hidden bg-background print:!block print:!overflow-visible print:!h-auto">
       
       {/* LEFT SIDEBAR: File Explorer */}
-      <Panel defaultSize="20%" minSize="10%" maxSize="40%" className="bg-card flex flex-col border-r border-border">
+      <Panel defaultSize="20%" minSize="10%" maxSize="40%" className="bg-card flex flex-col border-r border-border print:hidden">
         <div className="p-4 border-b border-border font-semibold flex items-center gap-2">
           <Layout className="w-4 h-4 text-blue-500" />
           Project Files
@@ -24,17 +24,18 @@ export default function WorkspaceView(props) {
         </div>
       </Panel>
 
-      <Separator className="w-2 bg-background flex items-center justify-center cursor-col-resize hover:bg-blue-500/20 transition-colors group">
+      <Separator className="w-2 bg-background flex items-center justify-center cursor-col-resize hover:bg-blue-500/20 transition-colors group print:hidden">
         <div className="w-1 h-8 rounded-full bg-border group-hover:bg-blue-500 transition-colors" />
       </Separator>
 
       {/* MIDDLE: Code Viewer */}
-      <Panel defaultSize="50%" minSize="30%" className="flex flex-col min-w-0 bg-[#0d1117]">
+      <Panel defaultSize="50%" minSize="30%" className="flex flex-col min-w-0 bg-[#0d1117] print:hidden">
         {props.activeFile ? (
           <CodeViewer
             content={props.fileContent}
             filename={props.activeFile}
             selectedLine={props.selectedLine}
+            jumpToLine={props.jumpToLine}
             onLineClick={props.handleLineClick}
             projectId={props.projectId}
           />
@@ -45,13 +46,13 @@ export default function WorkspaceView(props) {
         )}
       </Panel>
 
-      <Separator className="w-2 bg-background flex items-center justify-center cursor-col-resize hover:bg-blue-500/20 transition-colors group">
+      <Separator className="w-2 bg-background flex items-center justify-center cursor-col-resize hover:bg-blue-500/20 transition-colors group print:hidden">
         <div className="w-1 h-8 rounded-full bg-border group-hover:bg-blue-500 transition-colors" />
       </Separator>
 
       {/* RIGHT SIDEBAR: Socratic / Scorecard / Requirements */}
-      <Panel defaultSize="30%" minSize="20%" maxSize="60%" className="bg-card flex flex-col z-10 shadow-xl border-l border-border">
-        <div className="flex border-b border-border bg-background/50 overflow-x-auto">
+      <Panel defaultSize="30%" minSize="20%" maxSize="60%" className="bg-card flex flex-col z-10 shadow-xl border-l border-border print:!block print:!w-[100vw] print:!max-w-full print:![flex-basis:100%] print:shadow-none print:border-none print:!h-auto print:!overflow-visible">
+        <div className="flex border-b border-border bg-background/50 overflow-x-auto print:hidden">
           <button
             className={`flex-1 py-3 px-2 font-medium text-xs flex flex-col items-center justify-center gap-1 transition-colors ${activeRightPanel === 'chat' ? 'text-blue-500 border-b-2 border-blue-500 bg-blue-500/5' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => setActiveRightPanel('chat')}
@@ -92,10 +93,12 @@ export default function WorkspaceView(props) {
               analysisResults={props.analysisResults}
               studentOverrides={props.studentOverrides}
               markAsNonIssue={props.markAsNonIssue}
+              saveChecklistComment={props.saveChecklistComment}
               isAnalyzing={props.isAnalyzing}
               runAnalysis={props.runAnalysis}
               onFileSelect={props.handleFileSelect}
               onLineClick={props.handleLineClick}
+              projectName={props.project?.groupName || props.project?.name || props.projectId}
             />
           )}
           {activeRightPanel === 'requirements' && (
