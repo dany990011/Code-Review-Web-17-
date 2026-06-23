@@ -1,14 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { io } from 'socket.io-client';
+import { useAuth } from '@clerk/clerk-react';
 
 export default function useLecturerDashboard() {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { getToken } = useAuth();
 
-  const fetchProjects = (silent = false) => {
+  const fetchProjects = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects`)
-      .then(res => res.json())
-      .then(data => {
+    try {
+      const token = await getToken();
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 401 || res.status === 403) {
+        console.error('Unauthorized');
+        setIsLoading(false);
+        return;
+      }
+      const data = await res.json();
         const mappedSessions = data.map(project => {
           let groupName = project.githubUrl;
           try {
@@ -40,27 +51,41 @@ export default function useLecturerDashboard() {
         });
         setSessions(mappedSessions);
         setIsLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch projects:', err);
-        setIsLoading(false);
-      });
-  };
+    } catch (err) {
+      console.error('Failed to fetch projects:', err);
+      setIsLoading(false);
+    }
+  }, [getToken]);
 
   useEffect(() => {
     fetchProjects();
 
-    const intervalId = setInterval(() => {
-      fetchProjects(true);
-    }, 3000);
+    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const socket = io(socketUrl);
 
-    return () => clearInterval(intervalId);
+    socket.on('projectUpdated', () => {
+      fetchProjects(true);
+    });
+
+    socket.on('projectCreated', () => {
+      fetchProjects(true);
+    });
+
+    socket.on('projectDeleted', () => {
+      fetchProjects(true);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const deleteProject = async (projectId) => {
     try {
+      const token = await getToken();
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`, {
         method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (response.ok) {
         setSessions(prev => prev.filter(s => s.id !== projectId));
@@ -72,9 +97,32 @@ export default function useLecturerDashboard() {
     }
   };
 
+  const inviteLecturer = async (email) => {
+    try {
+      const token = await getToken();
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/lecturers`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ email })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to invite lecturer');
+      }
+      return { success: true, message: data.message };
+    } catch (err) {
+      console.error('Error inviting lecturer:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
   return {
     sessions,
     isLoading,
-    deleteProject
+    deleteProject,
+    inviteLecturer
   };
 }

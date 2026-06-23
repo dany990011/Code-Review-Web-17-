@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const Project = require('../models/Project');
 const Message = require('../models/Message');
+const { protectLecturerRoute } = require('../middleware/auth');
 
 // Set up Multer for file uploads
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -41,6 +42,11 @@ router.post('/upload', upload.single('requirementsDoc'), async (req, res) => {
 
     const savedProject = await newProject.save();
 
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('projectCreated', savedProject);
+    }
+
     res.status(201).json({
       message: 'Project uploaded successfully',
       projectId: savedProject._id,
@@ -52,7 +58,7 @@ router.post('/upload', upload.single('requirementsDoc'), async (req, res) => {
 });
 
 // API Endpoint to get all projects
-router.get('/', async (req, res) => {
+router.get('/', protectLecturerRoute, async (req, res) => {
   try {
     const projects = await Project.find().sort({ uploadedAt: -1 });
     res.json(projects);
@@ -75,7 +81,7 @@ router.get('/:projectId', async (req, res) => {
 });
 
 // API Endpoint to delete a project
-router.delete('/:projectId', async (req, res) => {
+router.delete('/:projectId', protectLecturerRoute, async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -91,6 +97,11 @@ router.delete('/:projectId', async (req, res) => {
       fs.unlinkSync(project.requirementsFilePath);
     }
     
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('projectDeleted', req.params.projectId);
+    }
+
     res.json({ success: true, message: 'Project deleted' });
   } catch (error) {
     console.error('Error deleting project:', error);
@@ -118,6 +129,12 @@ router.patch('/:projectId', express.json(), async (req, res) => {
     );
 
     if (!project) return res.status(404).json({ error: 'Project not found' });
+    
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project_${req.params.projectId}`).emit('projectUpdated', project);
+      io.emit('projectUpdated', project); // global for dashboard
+    }
     
     res.json(project);
   } catch (error) {

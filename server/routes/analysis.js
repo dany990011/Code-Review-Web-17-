@@ -114,6 +114,12 @@ ${fullCodebase.slice(0, 1000000)} // Increased cap to 1 million characters to su
     project.analysisResults = analysisResults;
     await project.save();
 
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project_${project._id}`).emit('projectUpdated', project);
+      io.emit('projectUpdated', project);
+    }
+
     res.json(analysisResults);
   } catch (error) {
     console.error('Error analyzing project:', error);
@@ -211,6 +217,12 @@ Return ONLY a valid JSON object matching exactly this structure:
     // Save to DB
     project.requirementsCheckResults = requirementsResults;
     await project.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`project_${project._id}`).emit('projectUpdated', project);
+      io.emit('projectUpdated', project);
+    }
 
     res.json(requirementsResults);
   } catch (error) {

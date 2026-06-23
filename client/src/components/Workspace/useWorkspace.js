@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
 
 export default function useWorkspace() {
@@ -99,30 +100,35 @@ export default function useWorkspace() {
     }
   }, [projectId]);
 
-  // Live updates (Polling)
+  // Live updates (WebSockets)
   useEffect(() => {
     if (!projectId) return;
-    
-    const intervalId = setInterval(() => {
-      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data) {
-            if (data.checkedChecklistIds) {
-              setChecklist(prev => prev.map(item => ({
-                ...item,
-                checked: data.checkedChecklistIds.includes(item.id)
-              })));
-            }
-            if (data.studentOverrides) {
-              setStudentOverrides(data.studentOverrides);
-            }
-          }
-        })
-        .catch(() => {}); // silently ignore polling errors
-    }, 3000); // Check every 3 seconds
 
-    return () => clearInterval(intervalId);
+    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const socket = io(socketUrl);
+
+    socket.on('connect', () => {
+      socket.emit('joinProject', projectId);
+    });
+
+    socket.on('projectUpdated', (data) => {
+      if (data) {
+        if (data.checkedChecklistIds) {
+          setChecklist(prev => prev.map(item => ({
+            ...item,
+            checked: data.checkedChecklistIds.includes(item.id)
+          })));
+        }
+        if (data.studentOverrides) {
+          setStudentOverrides(data.studentOverrides);
+        }
+      }
+    });
+
+    return () => {
+      socket.emit('leaveProject', projectId);
+      socket.disconnect();
+    };
   }, [projectId]);
 
   const handleFileSelect = async (file, lineToSelect = null, shouldHighlight = true) => {

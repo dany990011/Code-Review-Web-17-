@@ -1,11 +1,13 @@
 import React from 'react';
-import { Activity, Users, CheckCircle, Loader2, Trash2 } from 'lucide-react';
+import { Activity, Users, CheckCircle, Loader2, Trash2, UserPlus, LogOut } from 'lucide-react';
+import { useClerk } from '@clerk/clerk-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { generateAuditPDF } from '../../utils/pdfGenerator';
 
-export default function LecturerDashboardView({ sessions, isLoading, deleteProject }) {
+export default function LecturerDashboardView({ sessions, isLoading, deleteProject, inviteLecturer }) {
   const [reportSession, setReportSession] = React.useState(null);
+  const { signOut } = useClerk();
 
   if (isLoading) {
     return (
@@ -19,6 +21,18 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
   const handleDelete = (id) => {
     if (window.confirm("Are you sure you want to delete this project? This cannot be undone.")) {
       deleteProject(id);
+    }
+  };
+
+  const handleInvite = async () => {
+    const email = window.prompt("Enter the email address of the lecturer you want to invite:");
+    if (email && inviteLecturer) {
+      const result = await inviteLecturer(email);
+      if (result.success) {
+        alert(result.message);
+      } else {
+        alert(result.error);
+      }
     }
   };
 
@@ -44,6 +58,20 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
               <p className="text-2xl font-bold text-foreground">{sessions.filter(s => !s.active).length}</p>
             </div>
           </div>
+          <button
+            onClick={handleInvite}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors"
+          >
+            <UserPlus className="w-5 h-5" />
+            <span className="font-medium">Invite</span>
+          </button>
+          <button
+            onClick={() => signOut({ redirectUrl: '/' })}
+            className="flex items-center gap-2 px-4 py-2 border border-border hover:bg-muted text-foreground rounded-lg transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Sign Out</span>
+          </button>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { LogIn, BookOpen, User, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { SignIn } from '@clerk/clerk-react';
 
 export default function LoginView({ role, handleRoleChange, handleLogin }) {
   return (
@@ -19,34 +20,40 @@ export default function LoginView({ role, handleRoleChange, handleLogin }) {
           <p className="text-muted-foreground mt-2">Sign in to your Socratic Review session</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              type="button"
-              onClick={() => handleRoleChange('student')}
-              className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 \${role === 'student' ? 'border-blue-500 bg-blue-500/10 text-blue-500 ring-2 ring-blue-500/20 shadow-md shadow-blue-500/20' : 'border-border text-muted-foreground hover:border-blue-400/50 hover:bg-blue-500/5 hover:text-blue-400'}`}
-            >
-              <Users className="w-6 h-6 mb-2" />
-              <span className="font-medium">Student</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRoleChange('lecturer')}
-              className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 \${role === 'lecturer' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500 ring-2 ring-emerald-500/20 shadow-md shadow-emerald-500/20' : 'border-border text-muted-foreground hover:border-emerald-400/50 hover:bg-emerald-500/5 hover:text-emerald-400'}`}
-            >
-              <User className="w-6 h-6 mb-2" />
-              <span className="font-medium">Lecturer</span>
-            </button>
-          </div>
-
+        <div className="grid grid-cols-2 gap-4 mb-6">
           <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white py-3 rounded-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl hover:shadow-blue-500/25 hover:-translate-y-1 active:translate-y-0 active:scale-95 cursor-pointer"
+            type="button"
+            onClick={() => handleRoleChange('student')}
+            className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 ${role === 'student' ? 'border-blue-500 bg-blue-500/10 text-blue-500 ring-2 ring-blue-500/20 shadow-md shadow-blue-500/20' : 'border-border text-muted-foreground hover:border-blue-400/50 hover:bg-blue-500/5 hover:text-blue-400'}`}
           >
-            <LogIn className="w-5 h-5" />
-            Continue as {role.charAt(0).toUpperCase() + role.slice(1)}
+            <Users className="w-6 h-6 mb-2" />
+            <span className="font-medium">Student</span>
           </button>
-        </form>
+          <button
+            type="button"
+            onClick={() => handleRoleChange('lecturer')}
+            className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 ${role === 'lecturer' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500 ring-2 ring-emerald-500/20 shadow-md shadow-emerald-500/20' : 'border-border text-muted-foreground hover:border-emerald-400/50 hover:bg-emerald-500/5 hover:text-emerald-400'}`}
+          >
+            <User className="w-6 h-6 mb-2" />
+            <span className="font-medium">Lecturer</span>
+          </button>
+        </div>
+
+        {role === 'student' ? (
+          <form onSubmit={handleLogin} className="space-y-6">
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white py-3 rounded-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl hover:shadow-blue-500/25 hover:-translate-y-1 active:translate-y-0 active:scale-95 cursor-pointer"
+            >
+              <LogIn className="w-5 h-5" />
+              Continue as Student
+            </button>
+          </form>
+        ) : (
+          <div className="flex justify-center mt-6">
+            <SignIn routing="hash" />
+          </div>
+        )}
       </motion.div>
     </div>
   );
