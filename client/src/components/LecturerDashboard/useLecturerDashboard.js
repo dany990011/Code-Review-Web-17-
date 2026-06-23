@@ -5,12 +5,16 @@ import { useAuth } from '@clerk/clerk-react';
 export default function useLecturerDashboard() {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const fetchProjects = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
+      if (!isLoaded || !isSignedIn) return;
+      
       const token = await getToken();
+      if (!token) return; // Prevent fetching without a token
+      
       const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -55,10 +59,12 @@ export default function useLecturerDashboard() {
       console.error('Failed to fetch projects:', err);
       setIsLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, isLoaded, isSignedIn]);
 
   useEffect(() => {
-    fetchProjects();
+    if (isLoaded && isSignedIn) {
+      fetchProjects();
+    }
 
     const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const socket = io(socketUrl);
