@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
 const Message = require('../models/Message');
-const { genAI } = require('../services/ai');
+const { executeWithFallback } = require('../services/ai');
 const { parseGithubUrl, githubFetch } = require('../services/github');
 
 // API Endpoint to get chat messages
@@ -71,15 +71,6 @@ router.post('/:projectId/chat', express.json(), async (req, res) => {
       });
     }
 
-    // 3. Initialize Gemini Chat Session
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: "You are a Socratic Code Review tutor. Never give direct answers. Ask guiding questions to help the student find bugs and improve code quality. If the user asks a general coding question but hasn't selected a file or line of code (which will be indicated in the System Context), politely ask them to click on a specific file or line number in the workspace so you can discuss it together.",
-    });
-
-    const chat = model.startChat({
-      history: geminiHistory,
-    });
 
     // 4. Inject Active File Context & Send Message to Gemini
     let fileContentStr = "";
@@ -108,7 +99,20 @@ router.post('/:projectId/chat', express.json(), async (req, res) => {
     }
 
     const promptText = fileContentStr + (contextLine ? `[User Message for Line ${contextLine}]: ${text}` : `[User Message]: ${text}`);
-    const result = await chat.sendMessage(promptText);
+    
+    const result = await executeWithFallback(async (genAI) => {
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        systemInstruction: "You are a Socratic Code Review tutor. Never give direct answers. Ask guiding questions to help the student find bugs and improve code quality. If the user asks a general coding question but hasn't selected a file or line of code (which will be indicated in the System Context), politely ask them to click on a specific file or line number in the workspace so you can discuss it together.",
+      });
+
+      const chat = model.startChat({
+        history: geminiHistory,
+      });
+      
+      return await chat.sendMessage(promptText);
+    });
+
     const botResponseText = result.response.text();
 
     // 5. Save Bot Message

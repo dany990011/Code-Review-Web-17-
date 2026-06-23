@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
-const { genAI } = require('../services/ai');
+const { executeWithFallback } = require('../services/ai');
 const { parseGithubUrl, githubFetch } = require('../services/github');
 
 // Helper to chunk text
@@ -99,9 +99,11 @@ ${fullCodebase.slice(0, 1000000)} // Increased cap to 1 million characters to su
 `;
 
     // 4. Run AI Analysis
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    let aiText = result.response.text();
+    let aiText = await executeWithFallback(async (genAI) => {
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    });
     
     // Clean up markdown formatting if returned
     aiText = aiText.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -195,9 +197,11 @@ Return ONLY a valid JSON object matching exactly this structure:
 `;
 
     // 4. Run AI Analysis
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    let aiText = result.response.text();
+    let aiText = await executeWithFallback(async (genAI) => {
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    });
     
     // Clean up markdown formatting if returned
     aiText = aiText.replace(/```json/g, '').replace(/```/g, '').trim();

@@ -50,10 +50,32 @@ const ChecklistComment = ({ initialValue, onSave }) => {
 };
 import { motion } from 'framer-motion';
 import { generateWorkspacePDF } from '../../utils/pdfGenerator';
+import confettiModule from 'canvas-confetti';
+
+const confetti = confettiModule.default || confettiModule;
 
 export default function Checklist({ items, onToggle, analysisResults = [], studentOverrides = {}, markAsNonIssue, saveChecklistComment, isAnalyzing, runAnalysis, onFileSelect, onLineClick, projectName }) {
   const completedCount = items.filter(i => i.checked).length;
   const progress = (completedCount / items.length) * 100;
+
+  const prevCompletedCountRef = React.useRef(completedCount);
+
+  React.useEffect(() => {
+    if (completedCount === items.length && items.length > 0 && prevCompletedCountRef.current < items.length) {
+      try {
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          zIndex: 2147483647,
+          colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+        });
+      } catch (e) {
+        console.error("Confetti failed", e);
+      }
+    }
+    prevCompletedCountRef.current = completedCount;
+  }, [completedCount, items.length]);
 
   const handleViewIssue = (e, result) => {
     e.stopPropagation();
