@@ -3,9 +3,10 @@ const Lecturer = require('../models/Lecturer');
 
 const checkAllowlist = async (req, res, next) => {
   try {
-    const userId = req.auth.userId;
+    const userId = req.auth?.userId;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      console.error('Clerk Auth Error Details:', req.auth);
+      return res.status(401).json({ error: 'Unauthorized', details: req.auth });
     }
 
     // Fetch user details from Clerk to get the email
@@ -38,7 +39,6 @@ const checkAllowlist = async (req, res, next) => {
 };
 
 const protectLecturerRoute = [
-  requireAuth(),
   checkAllowlist
 ];
 
