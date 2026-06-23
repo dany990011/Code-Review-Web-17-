@@ -64,8 +64,12 @@ export default function useLecturerDashboard() {
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       fetchProjects();
+    } else if (isLoaded && !isSignedIn) {
+       setIsLoading(false);
     }
+  }, [isLoaded, isSignedIn, fetchProjects]);
 
+  useEffect(() => {
     const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const socket = io(socketUrl);
 
@@ -84,7 +88,7 @@ export default function useLecturerDashboard() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [fetchProjects]);
 
   const deleteProject = async (projectId) => {
     try {
