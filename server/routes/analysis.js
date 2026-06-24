@@ -117,7 +117,7 @@ ${fullCodebase.slice(0, 1000000)} // Increased cap to 1 million characters to su
     const io = req.app.get('io');
     if (io) {
       io.to(`project_${project._id}`).emit('projectUpdated', project);
-      io.emit('projectUpdated', project);
+      io.to('lecturers').emit('projectUpdated', project);
     }
 
     res.json(analysisResults);
@@ -221,7 +221,7 @@ Return ONLY a valid JSON object matching exactly this structure:
     const io = req.app.get('io');
     if (io) {
       io.to(`project_${project._id}`).emit('projectUpdated', project);
-      io.emit('projectUpdated', project);
+      io.to('lecturers').emit('projectUpdated', project);
     }
 
     res.json(requirementsResults);
