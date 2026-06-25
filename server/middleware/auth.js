@@ -1,3 +1,14 @@
+/**
+ * Lecturer authorization middleware.
+ *
+ * Strategy: Clerk (via clerkMiddleware in index.js) authenticates the request
+ * and attaches the user id. Here we resolve that user's email and authorize it
+ * by checking it against the Lecturer allowlist in MongoDB. The bootstrap
+ * ADMIN_EMAIL is allowed through unconditionally so the first lecturer can be
+ * created before the allowlist has any entries.
+ *
+ * Apply via `protectLecturerRoute` on any route that must be lecturer-only.
+ */
 const { requireAuth, clerkClient, getAuth } = require('@clerk/express');
 const Lecturer = require('../models/Lecturer');
 

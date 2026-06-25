@@ -1,14 +1,23 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Code2, Loader2, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
+/**
+ * The Socratic chat panel: renders the conversation (markdown), an
+ * "is thinking" indicator, and the input box. Purely presentational — all state
+ * and the send logic live in the useChat hook (passed down via props).
+ *
+ * Message roles: 'user' (right-aligned), 'assistant' (left), and a client-only
+ * 'error' bubble for failed requests.
+ */
 export default function AIChat({ messages, onSendMessage, selectedLine, activeFile, isLoading }) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
 
+  // Auto-scroll to the newest message whenever the list grows.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -35,7 +44,7 @@ export default function AIChat({ messages, onSendMessage, selectedLine, activeFi
             key={idx}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`flex gap-3 \${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-purple-500/20 text-purple-500' : msg.role === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'}`}>
               {msg.role === 'user' ? <User className="w-5 h-5" /> : msg.role === 'error' ? <AlertTriangle className="w-5 h-5" /> : <Bot className="w-5 h-5" />}

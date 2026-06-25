@@ -1,20 +1,30 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { fileContentUrl } from '../../services/api';
 
+/**
+ * Renders the contents of the open file with syntax highlighting and clickable,
+ * highlightable lines. Two special `content` sentinels short-circuit rendering:
+ * '__IMAGE__' (show the file as an image) and '__UNKNOWN_FILE__' (unpreviewable).
+ *
+ * `selectedLine` highlights + is scrolled to; `jumpToLine` is only scrolled to.
+ */
 export default function CodeViewer({ content, filename, selectedLine, jumpToLine, onLineClick, projectId }) {
   const containerRef = useRef(null);
 
+  // Scroll the focused line into view once content (and thus the DOM) is ready.
+  // The small timeout lets the highlighter finish painting line elements first.
   useEffect(() => {
     const lineToScroll = selectedLine || jumpToLine;
     if (lineToScroll && containerRef.current) {
-      // Small timeout to ensure DOM is rendered before scrolling
-      setTimeout(() => {
-        const lineEl = containerRef.current.querySelector(`#code-line-${lineToScroll}`);
+      const timer = setTimeout(() => {
+        const lineEl = containerRef.current?.querySelector(`#code-line-${lineToScroll}`);
         if (lineEl) {
           lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 50);
+      return () => clearTimeout(timer); // avoid a stale scroll if deps change fast
     }
   }, [selectedLine, jumpToLine, content]);
 
@@ -37,7 +47,7 @@ export default function CodeViewer({ content, filename, selectedLine, jumpToLine
   };
 
   if (content === '__IMAGE__') {
-    const imageUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/github/file?path=${encodeURIComponent(filename)}`;
+    const imageUrl = fileContentUrl(projectId, filename);
     return (
       <div className="flex flex-col h-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm overflow-hidden">
         <div className="flex items-center px-4 py-2 border-b border-[#333333] bg-[#252526] text-xs font-semibold text-[#cccccc]">

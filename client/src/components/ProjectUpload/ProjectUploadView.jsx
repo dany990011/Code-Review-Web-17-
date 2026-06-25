@@ -1,7 +1,10 @@
-import React from 'react';
 import { Upload, Code as Github, FileText, ArrowRight, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+/**
+ * Upload form: a GitHub repo URL + a requirements document, with a disabled
+ * submit button until both are provided. State/handlers come from useProjectUpload.
+ */
 export default function ProjectUploadView({
   githubUrl, requirementsDoc, isLoading,
   handleUrlChange, handleFileChange, handleSubmit

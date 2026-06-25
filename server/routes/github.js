@@ -1,78 +1,80 @@
+/**
+ * GitHub proxy routes — expose a project's repository contents to the client.
+ *
+ * The browser never calls GitHub directly: it goes through here so the server's
+ * GitHub token (higher rate limit) is used and binary files can be proxied.
+ * Mounted at /api/projects.
+ */
 const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
-const { parseGithubUrl, githubFetch } = require('../services/github');
+const { getRepoContext, fetchRepoTree, toRawUrl, githubFetch } = require('../services/github');
 
-// API Endpoint to get the GitHub file tree
+/**
+ * GET /:projectId/github/tree
+ * Returns the repo's files as a nested folder/file tree for the File Explorer.
+ */
 router.get('/:projectId/github/tree', async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    const repoInfo = parseGithubUrl(project.githubUrl);
-    if (!repoInfo) return res.status(400).json({ error: 'Invalid GitHub URL' });
+    // Resolve owner/repo/branch/subpath once (handles default-branch lookup).
+    const ctx = await getRepoContext(project.githubUrl);
+    if (!ctx) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
-    // 1. Get default branch
-    const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
-    if (!repoRes.ok) return res.status(repoRes.status).json({ error: 'Failed to fetch repo info' });
-    const repoData = await repoRes.json();
-    const branch = repoInfo.branch || repoData.default_branch || 'main';
+    let flatTree = await fetchRepoTree(ctx);
 
-    // 2. Get tree (recursive)
-    const treeRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`);
-    if (!treeRes.ok) return res.status(treeRes.status).json({ error: 'Failed to fetch repo tree' });
-    const treeData = await treeRes.json();
-
-    // 3. Convert flat tree to nested structure
-    const tree = [];
-    const map = {};
-
-    let flatTree = treeData.tree;
-    if (repoInfo.subpath) {
-      const prefix = repoInfo.subpath + '/';
+    // If the project targets a subfolder, keep only entries under it and strip
+    // the prefix so the client sees paths relative to that subfolder as the root.
+    if (ctx.subpath) {
+      const prefix = ctx.subpath + '/';
       flatTree = flatTree
         .filter(item => item.path.startsWith(prefix))
-        .map(item => ({
-          ...item,
-          path: item.path.substring(prefix.length)
-        }));
+        .map(item => ({ ...item, path: item.path.substring(prefix.length) }));
     }
+
+    // Convert GitHub's flat path list into a nested tree.
+    // `map` indexes every node by its full path so we can attach each child to
+    // its parent in a single pass (the recursive tree lists parents before children).
+    const tree = [];
+    const map = {};
 
     flatTree.forEach(item => {
       const parts = item.path.split('/');
       const name = parts.pop();
       const parentPath = parts.join('/');
-      
+
       const node = {
         name,
         path: item.path,
         type: item.type === 'tree' ? 'folder' : 'file',
         size: item.size
       };
-
-      if (node.type === 'folder') {
-        node.children = [];
-      }
+      if (node.type === 'folder') node.children = [];
 
       map[item.path] = node;
 
       if (parentPath === '') {
-        tree.push(node);
-      } else {
-        if (map[parentPath]) {
-          map[parentPath].children.push(node);
-        }
+        tree.push(node); // top-level entry
+      } else if (map[parentPath]) {
+        map[parentPath].children.push(node);
       }
     });
 
     res.json(tree);
   } catch (error) {
-    console.error('GitHub API error:', error);
-    res.status(500).json({ error: 'Failed to fetch GitHub repository data' });
+    console.error('GitHub API error (tree):', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to fetch GitHub repository data' });
   }
 });
 
-// API Endpoint to get file content or proxy binary files (like images)
+/**
+ * GET /:projectId/github/file?path=...
+ * Returns one file's contents. Text files come back as raw text; images and
+ * other binaries are streamed through with their original content-type so the
+ * client can render them (e.g. <img src=...>).
+ */
 router.get('/:projectId/github/file', async (req, res) => {
   try {
     const { path: filePath } = req.query;
@@ -81,44 +83,30 @@ router.get('/:projectId/github/file', async (req, res) => {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    const repoInfo = parseGithubUrl(project.githubUrl);
-    if (!repoInfo) return res.status(400).json({ error: 'Invalid GitHub URL' });
+    const ctx = await getRepoContext(project.githubUrl);
+    if (!ctx) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
-    // 1. Get default branch
-    const repoRes = await githubFetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}`);
-    if (!repoRes.ok) return res.status(repoRes.status).json({ error: 'Failed to fetch repo info' });
-    const repoData = await repoRes.json();
-    const branch = repoInfo.branch || repoData.default_branch || 'main';
-
-    // 2. Fetch raw file
-    let actualPath = filePath;
-    if (repoInfo.subpath) {
-      actualPath = `${repoInfo.subpath}/${filePath}`;
-    }
-    const fileUrl = `https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${branch}/${actualPath}`;
-    const fileRes = await githubFetch(fileUrl);
-    
+    const fileRes = await githubFetch(toRawUrl(ctx, filePath));
     if (!fileRes.ok) {
       return res.status(fileRes.status).json({ error: 'Failed to fetch file content' });
     }
 
     const contentType = fileRes.headers.get('content-type') || 'text/plain';
 
-    // Check if it's an image or binary file
     if (contentType.startsWith('image/') || contentType === 'application/octet-stream') {
-      const arrayBuffer = await fileRes.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      // Binary: forward the bytes untouched.
+      const buffer = Buffer.from(await fileRes.arrayBuffer());
       res.setHeader('Content-Type', contentType);
       res.send(buffer);
     } else {
-      // Return as raw text for code files
+      // Text/code: return as plain text for the syntax highlighter.
       const content = await fileRes.text();
       res.setHeader('Content-Type', 'text/plain');
       res.send(content);
     }
   } catch (error) {
-    console.error('GitHub API error:', error);
-    res.status(500).json({ error: 'Failed to fetch file content' });
+    console.error('GitHub API error (file):', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to fetch file content' });
   }
 });
 

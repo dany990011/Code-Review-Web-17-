@@ -5,6 +5,12 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { generateAuditPDF } from '../../utils/pdfGenerator';
 
+/**
+ * Dashboard view: summary stats, a grid of project cards (progress, status,
+ * delete, open), and a per-project audit-report modal that can be exported to
+ * PDF. Data/actions come from useLecturerDashboard; the only local state is which
+ * project's audit report is open.
+ */
 export default function LecturerDashboardView({ sessions, isLoading, deleteProject, inviteLecturer }) {
   const [reportSession, setReportSession] = React.useState(null);
   const { signOut } = useClerk();

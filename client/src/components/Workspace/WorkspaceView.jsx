@@ -1,19 +1,33 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Panel, Group, Separator } from "react-resizable-panels";
 import FileExplorer from './FileExplorer';
 import CodeViewer from './CodeViewer';
 import AIChat from './AIChat';
 import Checklist from './Checklist';
 import RequirementsCheck from './RequirementsCheck';
-import { Layout, MessageSquare, CheckSquare, FileText, GripVertical, Code, Folder } from 'lucide-react';
+import { Layout, MessageSquare, CheckSquare, FileText, Code, Folder } from 'lucide-react';
 
+/**
+ * The workspace layout. Three regions: file explorer, code viewer, and a right
+ * panel that tabs between the Socratic AI chat, the scorecard checklist, and the
+ * requirements check.
+ *
+ * Two layouts share the same regions: desktop uses resizable side-by-side panels;
+ * mobile (< md) shows one region at a time with a bottom tab bar. The print
+ * styles (see index.css) flatten everything so the right panel exports cleanly.
+ *
+ * All data/handlers arrive via props from useWorkspace; the only local state is
+ * which right-panel tab and which mobile region is active.
+ */
 export default function WorkspaceView(props) {
-  const [activeRightPanel, setActiveRightPanel] = useState('chat');
-  const [activeMobileTab, setActiveMobileTab] = useState('explorer'); // 'explorer', 'code', 'panel'
+  const [activeRightPanel, setActiveRightPanel] = useState('chat'); // 'chat' | 'checklist' | 'requirements'
+  const [activeMobileTab, setActiveMobileTab] = useState('explorer'); // 'explorer' | 'code' | 'panel'
 
+  // Selecting a file should also surface the code region on mobile (where only
+  // one region is visible at a time).
   const handleFileSelectOverride = (file, line, triggerAIChat) => {
     props.handleFileSelect(file, line, triggerAIChat);
-    setActiveMobileTab('code'); // Auto-switch to code view on mobile
+    setActiveMobileTab('code');
   };
 
   const renderFileExplorer = () => (
@@ -94,12 +108,12 @@ export default function WorkspaceView(props) {
             isAnalyzing={props.isAnalyzing}
             runAnalysis={props.runAnalysis}
             onFileSelect={handleFileSelectOverride}
-            onLineClick={props.handleLineClick}
             projectName={props.project?.groupName || props.project?.name || props.projectId}
           />
         )}
         {activeRightPanel === 'requirements' && (
           <RequirementsCheck
+            key={props.project?._id || 'loading'}
             projectId={props.projectId}
             initialResults={props.project?.requirementsCheckResults}
           />

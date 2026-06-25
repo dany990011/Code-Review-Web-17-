@@ -1,3 +1,12 @@
+/**
+ * Client-side PDF export (pdfmake) for the two reports:
+ *   - generateAuditPDF      : the lecturer's audit report (AI findings vs. overrides)
+ *   - generateWorkspacePDF  : the student's scorecard (checklist + scores)
+ *
+ * The import/vfs dance below normalizes pdfmake + its bundled fonts across the
+ * different ways bundlers expose their default vs. namespace exports; without
+ * wiring `vfs`, pdfmake throws "File 'Roboto' not found" at render time.
+ */
 import * as pdfMakeModule from 'pdfmake/build/pdfmake';
 import * as pdfFontsModule from 'pdfmake/build/vfs_fonts';
 

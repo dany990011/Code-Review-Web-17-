@@ -1,3 +1,17 @@
+/**
+ * Server entry point.
+ *
+ * Wires together: Express (REST API under /api), Socket.IO (real-time updates to
+ * the workspace + lecturer dashboard), MongoDB (via connectDB), Clerk (auth),
+ * and CORS. We create the HTTP server manually so Socket.IO and Express can
+ * share one port: WebSocket upgrade requests go to Socket.IO, everything else
+ * falls through to Express.
+ *
+ * Socket.IO rooms used:
+ *   - `project_<id>` : clients viewing one project's workspace
+ *   - `lecturers`    : clients viewing the dashboard
+ * Routes emit to these rooms so the relevant clients update live.
+ */
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');

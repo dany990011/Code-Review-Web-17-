@@ -1,7 +1,20 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Play, Loader2, CheckCircle2, XCircle, AlertTriangle, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { api } from '../../services/api';
 
+/**
+ * "Requirements Check" panel: runs the AI audit of the codebase against the
+ * uploaded requirements document and renders the compliance result (status,
+ * score, critical issues, missing vs. implemented features).
+ *
+ * Seeds from any previously-saved result (`initialResults`). The parent gives
+ * this component a `key` tied to the project id, so it remounts — and re-seeds —
+ * once the project has loaded, avoiding a prop-syncing effect.
+ *
+ * @param {string} projectId
+ * @param {object} [initialResults] Previously-saved result from the project, if any.
+ */
 export default function RequirementsCheck({ projectId, initialResults }) {
   const [isChecking, setIsChecking] = useState(false);
   const [results, setResults] = useState(initialResults || null);
@@ -11,12 +24,7 @@ export default function RequirementsCheck({ projectId, initialResults }) {
     setIsChecking(true);
     setError(null);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}/check-requirements`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to perform requirements check');
-      setResults(data);
+      setResults(await api.checkRequirements(projectId));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -80,7 +88,7 @@ export default function RequirementsCheck({ projectId, initialResults }) {
             className="space-y-6"
           >
             {/* Header Score */}
-            <div className={`p-4 rounded-xl border flex items-center justify-between \${getStatusColor(results.overallStatus)}`}>
+            <div className={`p-4 rounded-xl border flex items-center justify-between ${getStatusColor(results.overallStatus)}`}>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider mb-1 opacity-80">Overall Status</p>
                 <p className="text-2xl font-bold">{results.overallStatus}</p>

@@ -1,6 +1,17 @@
 import React from 'react';
 import { CheckCircle2, Circle, Play, Loader2, FileCode2, Save } from 'lucide-react';
+import { motion } from 'framer-motion';
+import confettiModule from 'canvas-confetti';
+import { generateWorkspacePDF } from '../../utils/pdfGenerator';
 
+// canvas-confetti's default export varies by bundler interop; normalize it.
+const confetti = confettiModule.default || confettiModule;
+
+/**
+ * A per-category note field. Local-edit state with explicit save (on button
+ * click or blur); shows a transient "Saved" confirmation. Clicks are stopped
+ * from bubbling so editing a comment doesn't toggle the parent checklist row.
+ */
 const ChecklistComment = ({ initialValue, onSave }) => {
   const [value, setValue] = React.useState(initialValue || '');
   const [savedValue, setSavedValue] = React.useState(initialValue || '');
@@ -48,16 +59,21 @@ const ChecklistComment = ({ initialValue, onSave }) => {
     </div>
   );
 };
-import { motion } from 'framer-motion';
-import { generateWorkspacePDF } from '../../utils/pdfGenerator';
-import confettiModule from 'canvas-confetti';
 
-const confetti = confettiModule.default || confettiModule;
-
-export default function Checklist({ items, onToggle, analysisResults = [], studentOverrides = {}, markAsNonIssue, saveChecklistComment, isAnalyzing, runAnalysis, onFileSelect, onLineClick, projectName }) {
+/**
+ * The "Socratic Scorecard": the 12-category checklist merged with the AI's
+ * findings. Each row can be ticked off, shows the AI score/reasoning when an
+ * analysis exists, lets the reviewer mark a finding as a false positive or add a
+ * comment, and links to the offending code. Fires confetti on 100% completion.
+ *
+ * Presentational: all state/actions come from props (the useProjectReview hook).
+ */
+export default function Checklist({ items, onToggle, analysisResults = [], studentOverrides = {}, markAsNonIssue, saveChecklistComment, isAnalyzing, runAnalysis, onFileSelect, projectName }) {
   const completedCount = items.filter(i => i.checked).length;
   const progress = (completedCount / items.length) * 100;
 
+  // Track the previous count so confetti fires only on the transition *to* 100%,
+  // not on every render while already complete.
   const prevCompletedCountRef = React.useRef(completedCount);
 
   React.useEffect(() => {

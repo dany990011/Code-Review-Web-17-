@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Sun, Moon } from 'lucide-react';
 import LoginContainer from './components/Login/LoginContainer';
@@ -8,13 +8,27 @@ import LecturerDashboardContainer from './components/LecturerDashboard/LecturerD
 
 import { ClerkProvider } from '@clerk/clerk-react';
 
+// Clerk publishable key (public by design — safe to ship in the bundle).
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
+/**
+ * App shell: wraps everything in Clerk auth + the router, renders the persistent
+ * header (title + theme toggle), and defines the four routes:
+ *   /                      login / role select
+ *   /upload                student project upload
+ *   /workspace/:projectId  the review workspace
+ *   /dashboard             lecturer dashboard
+ *
+ * Routes aren't guarded on the client — the dashboard's data API enforces the
+ * lecturer allowlist server-side, so a non-lecturer simply sees no data.
+ */
 function App() {
+  // Theme is persisted in localStorage; default is dark unless 'light' was saved.
   const [isLightMode, setIsLightMode] = useState(() => {
     return localStorage.getItem('theme') === 'light';
   });
 
+  // Reflect the theme onto <html> (Tailwind's `.light` overrides) and persist it.
   useEffect(() => {
     if (isLightMode) {
       document.documentElement.classList.add('light');

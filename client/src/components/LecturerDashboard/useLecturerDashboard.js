@@ -1,91 +1,84 @@
 import { useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '@clerk/clerk-react';
+import { api, API_BASE_URL } from '../../services/api';
+import { getRepoName } from '../../utils/github';
 
+/**
+ * Powers the lecturer dashboard: loads every project (authenticated with the
+ * Clerk token), keeps the list live via WebSockets, and exposes delete + invite
+ * actions. Mapping raw projects into card-friendly "sessions" happens here so
+ * the view stays purely presentational.
+ */
 export default function useLecturerDashboard() {
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
+  /**
+   * Fetches all projects and maps them to the dashboard card shape.
+   * @param {boolean} silent  Refresh without flashing the loading spinner
+   *                          (used for live, socket-triggered refreshes).
+   */
   const fetchProjects = useCallback(async (silent = false) => {
+    if (!isLoaded || !isSignedIn) return; // wait until Clerk is ready
     if (!silent) setIsLoading(true);
+
     try {
-      if (!isLoaded || !isSignedIn) return;
-      
       const token = await getToken();
-      if (!token) return; // Prevent fetching without a token
-      
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects`, {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!token) return;
+
+      const data = await api.listProjects(token);
+      const mappedSessions = data.map(project => {
+        const progress = Array.isArray(project.checkedChecklistIds)
+          ? Math.round((project.checkedChecklistIds.length / 12) * 100)
+          : 0;
+
+        return {
+          id: project._id,
+          groupName: getRepoName(project.githubUrl),
+          reviewer: 'Anonymous Student',
+          progress,
+          active: progress < 100,
+          createdAt: new Date(project.uploadedAt).toLocaleDateString('en-GB'),
+          updatedAt: project.updatedAt
+            ? new Date(project.updatedAt).toLocaleDateString('en-GB')
+            : new Date(project.uploadedAt).toLocaleDateString('en-GB'),
+          rawProject: project,
+        };
       });
-      if (res.status === 401 || res.status === 403) {
-        console.error('Unauthorized');
-        setIsLoading(false);
-        return;
-      }
-      const data = await res.json();
-        const mappedSessions = data.map(project => {
-          let groupName = project.githubUrl;
-          try {
-            const parsed = new URL(project.githubUrl);
-            const parts = parsed.pathname.split('/').filter(Boolean);
-            if (parts.length > 0) {
-              groupName = parts[parts.length - 1].replace('.git', '');
-            }
-          } catch (e) {
-            const parts = groupName.split('/').filter(Boolean);
-            if (parts.length > 0) groupName = parts[parts.length - 1].replace('.git', '');
-          }
-
-          let progress = 0;
-          if (project.checkedChecklistIds && Array.isArray(project.checkedChecklistIds)) {
-            progress = Math.round((project.checkedChecklistIds.length / 12) * 100);
-          }
-
-          return {
-            id: project._id,
-            groupName: groupName,
-            reviewer: 'Anonymous Student',
-            progress: progress,
-            active: progress < 100,
-            createdAt: new Date(project.uploadedAt).toLocaleDateString('en-GB'),
-            updatedAt: project.updatedAt ? new Date(project.updatedAt).toLocaleDateString('en-GB') : new Date(project.uploadedAt).toLocaleDateString('en-GB'),
-            rawProject: project
-          };
-        });
-        setSessions(mappedSessions);
-        setIsLoading(false);
+      setSessions(mappedSessions);
     } catch (err) {
+      // A 401/403 (caller isn't an allowlisted lecturer) surfaces here too;
+      // there's nothing to show, so we just stop loading.
       console.error('Failed to fetch projects:', err);
+    } finally {
       setIsLoading(false);
     }
   }, [getToken, isLoaded, isSignedIn]);
 
+  // Initial load once Clerk has resolved the auth state. Driving loading state
+  // here is intentional — this is a mount-time data fetch, the legitimate use of
+  // an effect, not the derived-state anti-pattern the lint rule targets.
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      fetchProjects();
-    } else if (isLoaded && !isSignedIn) {
-       setIsLoading(false);
-    }
+    if (!isLoaded) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isSignedIn) fetchProjects(); else setIsLoading(false);
   }, [isLoaded, isSignedIn, fetchProjects]);
 
+  // Live updates. The socket MUST join the 'lecturers' room — the server emits
+  // projectCreated/Updated/Deleted only to that room. Without joining (the
+  // previous behavior), none of these events arrived and the dashboard only
+  // refreshed on a manual page reload.
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const socket = io(socketUrl);
-
-    socket.on('projectUpdated', () => {
-      fetchProjects(true);
-    });
-
-    socket.on('projectCreated', () => {
-      fetchProjects(true);
-    });
-
-    socket.on('projectDeleted', () => {
-      fetchProjects(true);
-    });
+    const socket = io(API_BASE_URL);
+    socket.on('connect', () => socket.emit('joinLecturers'));
+    socket.on('projectUpdated', () => fetchProjects(true));
+    socket.on('projectCreated', () => fetchProjects(true));
+    socket.on('projectDeleted', () => fetchProjects(true));
 
     return () => {
+      socket.emit('leaveLecturers');
       socket.disconnect();
     };
   }, [fetchProjects]);
@@ -93,15 +86,8 @@ export default function useLecturerDashboard() {
   const deleteProject = async (projectId) => {
     try {
       const token = await getToken();
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/projects/${projectId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setSessions(prev => prev.filter(s => s.id !== projectId));
-      } else {
-        console.error('Failed to delete project');
-      }
+      await api.deleteProject(projectId, token);
+      setSessions(prev => prev.filter(s => s.id !== projectId)); // optimistic removal
     } catch (err) {
       console.error('Error deleting project:', err);
     }
@@ -110,18 +96,7 @@ export default function useLecturerDashboard() {
   const inviteLecturer = async (email) => {
     try {
       const token = await getToken();
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/lecturers`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify({ email })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to invite lecturer');
-      }
+      const data = await api.inviteLecturer(email, token);
       return { success: true, message: data.message };
     } catch (err) {
       console.error('Error inviting lecturer:', err);
@@ -129,10 +104,5 @@ export default function useLecturerDashboard() {
     }
   };
 
-  return {
-    sessions,
-    isLoading,
-    deleteProject,
-    inviteLecturer
-  };
+  return { sessions, isLoading, deleteProject, inviteLecturer };
 }

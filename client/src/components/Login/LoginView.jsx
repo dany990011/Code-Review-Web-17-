@@ -1,8 +1,11 @@
-import React from 'react';
 import { LogIn, BookOpen, User, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SignIn } from '@clerk/clerk-react';
 
+/**
+ * Login screen: a role toggle (Student / Lecturer). Students get a "Continue"
+ * button; lecturers get Clerk's <SignIn> widget. State/handlers come from useLogin.
+ */
 export default function LoginView({ role, handleRoleChange, handleLogin }) {
   return (
     <div className="flex-1 flex items-center justify-center p-4 bg-background">
