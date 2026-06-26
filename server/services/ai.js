@@ -46,6 +46,9 @@ async function executeWithFallback(actionFn) {
       return await actionFn(genAI);
     } catch (err) {
       console.warn(`API Key ${i} failed. Reason: ${err.message}`);
+      if (err.status === 403) {
+        console.warn(`403 Details:`, JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+      }
       lastError = err;
 
       const isRateLimit = err.status === 429 || (err.message && err.message.includes('429')) || (err.message && err.message.toLowerCase().includes('quota'));
