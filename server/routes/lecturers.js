@@ -11,7 +11,7 @@ const router = express.Router();
 const Lecturer = require('../models/Lecturer');
 const { protectLecturerRoute } = require('../middleware/auth');
 
-/** POST /api/lecturers — add an email to the allowlist (existing lecturers only). */
+// Add a new lecturer to the allowlist (must be authenticated as an existing lecturer)
 router.post('/', protectLecturerRoute, async (req, res) => {
   try {
     const { email } = req.body;
@@ -31,7 +31,7 @@ router.post('/', protectLecturerRoute, async (req, res) => {
   }
 });
 
-/** GET /api/lecturers — list all allowed lecturers (lecturer-only). */
+// Get all allowed lecturers
 router.get('/', protectLecturerRoute, async (req, res) => {
   try {
     const lecturers = await Lecturer.find({}, 'email addedAt').sort({ addedAt: -1 });

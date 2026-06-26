@@ -10,19 +10,17 @@ const router = express.Router();
 const Project = require('../models/Project');
 const { getRepoContext, fetchRepoTree, toRawUrl, githubFetch } = require('../services/github');
 
-/**
- * GET /:projectId/github/tree
- * Returns the repo's files as a nested folder/file tree for the File Explorer.
- */
+// API Endpoint to get the GitHub file tree
 router.get('/:projectId/github/tree', async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    // Resolve owner/repo/branch/subpath once (handles default-branch lookup).
+    // 1. Get default branch
     const ctx = await getRepoContext(project.githubUrl);
     if (!ctx) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
+    // 2. Get tree (recursive)
     let flatTree = await fetchRepoTree(ctx);
 
     // If the project targets a subfolder, keep only entries under it and strip
@@ -34,9 +32,7 @@ router.get('/:projectId/github/tree', async (req, res) => {
         .map(item => ({ ...item, path: item.path.substring(prefix.length) }));
     }
 
-    // Convert GitHub's flat path list into a nested tree.
-    // `map` indexes every node by its full path so we can attach each child to
-    // its parent in a single pass (the recursive tree lists parents before children).
+    // 3. Convert flat tree to nested structure
     const tree = [];
     const map = {};
 
@@ -69,12 +65,7 @@ router.get('/:projectId/github/tree', async (req, res) => {
   }
 });
 
-/**
- * GET /:projectId/github/file?path=...
- * Returns one file's contents. Text files come back as raw text; images and
- * other binaries are streamed through with their original content-type so the
- * client can render them (e.g. <img src=...>).
- */
+// API Endpoint to get file content or proxy binary files (like images)
 router.get('/:projectId/github/file', async (req, res) => {
   try {
     const { path: filePath } = req.query;
@@ -83,9 +74,11 @@ router.get('/:projectId/github/file', async (req, res) => {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
+    // 1. Get default branch
     const ctx = await getRepoContext(project.githubUrl);
     if (!ctx) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
+    // 2. Fetch raw file
     const fileRes = await githubFetch(toRawUrl(ctx, filePath));
     if (!fileRes.ok) {
       return res.status(fileRes.status).json({ error: 'Failed to fetch file content' });
@@ -94,12 +87,12 @@ router.get('/:projectId/github/file', async (req, res) => {
     const contentType = fileRes.headers.get('content-type') || 'text/plain';
 
     if (contentType.startsWith('image/') || contentType === 'application/octet-stream') {
-      // Binary: forward the bytes untouched.
+      // Check if it's an image or binary file
       const buffer = Buffer.from(await fileRes.arrayBuffer());
       res.setHeader('Content-Type', contentType);
       res.send(buffer);
     } else {
-      // Text/code: return as plain text for the syntax highlighter.
+      // Return as raw text for code files
       const content = await fileRes.text();
       res.setHeader('Content-Type', 'text/plain');
       res.send(content);

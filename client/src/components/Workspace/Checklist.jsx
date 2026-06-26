@@ -2,7 +2,6 @@ import React from 'react';
 import { CheckCircle2, Circle, Play, Loader2, FileCode2, Save } from 'lucide-react';
 import { motion } from 'framer-motion';
 import confettiModule from 'canvas-confetti';
-import { generateWorkspacePDF } from '../../utils/pdfGenerator';
 
 // canvas-confetti's default export varies by bundler interop; normalize it.
 const confetti = confettiModule.default || confettiModule;
@@ -100,6 +99,11 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
     }
   };
 
+  const handleDownloadPDF = async () => {
+    const { generateWorkspacePDF } = await import('../../utils/pdfGenerator');
+    generateWorkspacePDF(items, analysisResults, studentOverrides, projectName);
+  };
+
   const getScoreColor = (score) => {
     if (score >= 8) return 'text-emerald-400 bg-emerald-900 border-emerald-500';
     if (score >= 5) return 'text-yellow-400 bg-yellow-900 border-yellow-500';
@@ -129,7 +133,7 @@ export default function Checklist({ items, onToggle, analysisResults = [], stude
            <div className="flex items-center gap-3">
              <span className="text-sm font-medium">Review Progress</span>
              <button 
-               onClick={() => generateWorkspacePDF(items, analysisResults, studentOverrides, projectName)} 
+               onClick={handleDownloadPDF}
                className="px-2 py-1 bg-purple-500/10 text-purple-500 text-[10px] uppercase font-bold rounded hover:bg-purple-500/20 transition-colors print:hidden"
              >
                Download PDF

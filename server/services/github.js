@@ -47,11 +47,7 @@ function parseGithubUrl(url) {
   return null;
 }
 
-/**
- * Thin wrapper around fetch that attaches the server's GitHub token when one is
- * configured. The token is optional, but without it GitHub's unauthenticated
- * rate limit (60 req/hour/IP) is hit almost immediately when analyzing a repo.
- */
+// Wrapper for GitHub API requests to optionally include PAT for higher rate limits
 async function githubFetch(url, options = {}) {
   const headers = { ...options.headers };
   if (process.env.GITHUB_TOKEN) {

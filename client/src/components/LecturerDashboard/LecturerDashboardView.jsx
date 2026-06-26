@@ -3,7 +3,6 @@ import { Activity, Users, CheckCircle, Loader2, Trash2, UserPlus, LogOut } from 
 import { useClerk } from '@clerk/clerk-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { generateAuditPDF } from '../../utils/pdfGenerator';
 
 /**
  * Dashboard view: summary stats, a grid of project cards (progress, status,
@@ -40,6 +39,11 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
         alert(result.error);
       }
     }
+  };
+
+  const handleDownloadAuditPDF = async () => {
+    const { generateAuditPDF } = await import('../../utils/pdfGenerator');
+    generateAuditPDF(reportSession.rawProject, reportSession.groupName);
   };
 
   return (
@@ -225,9 +229,7 @@ export default function LecturerDashboardView({ sessions, isLoading, deleteProje
             
             <div className="p-4 border-t border-border bg-muted/30 flex justify-end gap-3 print:hidden">
               <button 
-                onClick={() => {
-                  generateAuditPDF(reportSession.rawProject, reportSession.groupName);
-                }}
+                onClick={handleDownloadAuditPDF}
                 className="px-6 py-2 bg-purple-500 text-white font-medium rounded hover:bg-purple-600 transition-colors"
               >
                 Download PDF

@@ -13,65 +13,56 @@ const fs = require('fs');
 const Project = require('../models/Project');
 const Message = require('../models/Message');
 const { protectLecturerRoute } = require('../middleware/auth');
+const { extractRequirementsText } = require('../services/requirements');
 
-// --- File upload setup (Multer) ---------------------------------------------
-// Uploaded requirements docs are written to /uploads. We also read the file's
-// text immediately on upload and persist it in the DB (see below), so the app
-// no longer depends on this directory surviving a restart.
-const uploadDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
+// Set up Multer for file uploads
+const uploadDir = path.join(__dirname, '..', 'uploads');  //a path for file uploads
+if (!fs.existsSync(uploadDir)) {  //if it doesnt already exsist, create it (in the server)
   fs.mkdirSync(uploadDir);
 }
 
 const storage = multer.diskStorage({
+  //setting the destination useing a call back and the destination we set before
   destination: (req, file, cb) => cb(null, uploadDir),
-  // Prefix with a timestamp so concurrent uploads of the same filename don't collide.
+  //setting the filename with the name using the currenttime (in ms) so that files wont get overwritten
   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage });   //feeding the rulebook to multer
 
-/**
- * POST /api/projects/upload
- * Creates a project from a GitHub URL + a single requirements document.
- * `upload.single` runs first and saves the file before this handler executes.
- */
+// API Endpoint to handle project upload
 router.post('/upload', upload.single('requirementsDoc'), async (req, res) => {
   try {
-    const { githubUrl } = req.body;
-    const file = req.file; // populated by Multer
+    const { githubUrl } = req.body;   //the github url
+    const file = req.file;  // object that contains info about the file multer saved
 
     if (!githubUrl || !file) {
       return res.status(400).json({ error: 'GitHub URL and Requirements Document are required.' });
     }
 
-    // Capture the requirements text now and store it in the DB. Disk storage is
-    // ephemeral on many hosts, so reading the file back later is unreliable.
-    // (Plain-text/markdown read cleanly; binary formats like PDF degrade the
-    // same way they did before — see the PDF-parsing note in the recommendations.)
     let requirementsText = '';
     try {
-      requirementsText = fs.readFileSync(file.path, 'utf8');
+      requirementsText = await extractRequirementsText(file.path, file.originalname);
     } catch (readErr) {
       console.warn('Could not read requirements file as text:', readErr.message);
+      return res.status(400).json({ error: readErr.message || 'Could not read requirements file.' });
     }
 
-    const newProject = new Project({
+    const newProject = new Project({  //blueprint for mongoose for a projct
       githubUrl,
       requirementsFileName: file.originalname,
       requirementsFilePath: file.path,
       requirementsText,
     });
 
-    const savedProject = await newProject.save();
+    const savedProject = await newProject.save();  //saving in DB
 
-    // Notify any lecturers watching the dashboard that a new project arrived.
-    const io = req.app.get('io');
+    const io = req.app.get('io'); //getting the app from req becasue req.app = app thatnks to Express
     if (io) {
-      io.to('lecturers').emit('projectCreated', savedProject);
+      io.to('lecturers').emit('projectCreated', savedProject);  //sending to lecturers room that a project was created
     }
 
-    res.status(201).json({
+    res.status(201).json({  //sending to the client a response of succsess
       message: 'Project uploaded successfully',
       projectId: savedProject._id,
     });
@@ -81,56 +72,48 @@ router.post('/upload', upload.single('requirementsDoc'), async (req, res) => {
   }
 });
 
-/**
- * GET /api/projects  (lecturer-only)
- * Lists every project, newest first, for the dashboard.
- */
+// API Endpoint to get all projects
 router.get('/', protectLecturerRoute, async (req, res) => {
   try {
-    const projects = await Project.find().sort({ uploadedAt: -1 });
-    res.json(projects);
+    const projects = await Project.find().sort({ uploadedAt: -1 }); //find all prjects, sort them by newest (-1)
+    res.json(projects); //send all projcts to client
   } catch (error) {
     console.error('Error fetching all projects:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
   }
 });
 
-/**
- * GET /api/projects/:projectId
- * Returns a single project. Open so the student workspace can load without auth.
- */
+// API Endpoint to get project details
 router.get('/:projectId', async (req, res) => {
   try {
-    const project = await Project.findById(req.params.projectId);
+    const project = await Project.findById(req.params.projectId);   //find the proejct with that ID in DB
     if (!project) return res.status(404).json({ error: 'Project not found' });
-    res.json(project);
+    res.json(project);  //send back to client
   } catch (error) {
     console.error('Error fetching project:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
   }
 });
 
-/**
- * DELETE /api/projects/:projectId  (lecturer-only)
- * Removes the project, its chat messages, and the requirements file on disk.
- */
+// API Endpoint to delete a project
 router.delete('/:projectId', protectLecturerRoute, async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    // Remove associated chat history first, then the project document.
+    // Delete associated messages
     await Message.deleteMany({ projectId: req.params.projectId });
+    // Delete the project
     await Project.findByIdAndDelete(req.params.projectId);
 
-    // Best-effort cleanup of the uploaded file.
-    if (project.requirementsFilePath && fs.existsSync(project.requirementsFilePath)) {
-      fs.unlinkSync(project.requirementsFilePath);
+    // Optionally delete the physical file
+    if (project.requirementsFilePath && fs.existsSync(project.requirementsFilePath)) {  //check if file exists both in the object and on actual drive
+      fs.unlinkSync(project.requirementsFilePath);    //delete it
     }
 
     const io = req.app.get('io');
     if (io) {
-      io.to('lecturers').emit('projectDeleted', req.params.projectId);
+      io.to('lecturers').emit('projectDeleted', req.params.projectId);  //sent to lecturers room that we deleted a file
     }
 
     res.json({ success: true, message: 'Project deleted' });
@@ -140,20 +123,14 @@ router.delete('/:projectId', protectLecturerRoute, async (req, res) => {
   }
 });
 
-/**
- * PATCH /api/projects/:projectId
- * Updates review state: which checklist categories are ticked, and the per-
- * category overrides/comments. Only the fields present in the body are touched.
- * Broadcasts the new state to the project room (other viewers) and to lecturers.
- */
+// API Endpoint to update project (for checklist and overrides)
 router.patch('/:projectId', express.json(), async (req, res) => {
   try {
-    const { checkedChecklistIds, studentOverrides } = req.body;
+    const { checkedChecklistIds, studentOverrides } = req.body; //we get these files from the body of the reques with is now a JS object
 
-    // Build a partial update so we never clobber a field the client didn't send.
     const updateData = {};
-    if (checkedChecklistIds !== undefined) {
-      updateData.checkedChecklistIds = checkedChecklistIds;
+    if (checkedChecklistIds !== undefined) {  //if this value was sent by the client
+      updateData.checkedChecklistIds = checkedChecklistIds; //setting  the new values after change
     }
     if (studentOverrides !== undefined) {
       updateData.studentOverrides = studentOverrides;
@@ -161,16 +138,16 @@ router.patch('/:projectId', express.json(), async (req, res) => {
 
     const project = await Project.findByIdAndUpdate(
       req.params.projectId,
-      { $set: updateData },
-      { returnDocument: 'after' } // return the updated doc, not the pre-update one
+      { $set: updateData }, // MongoDB language : change only the fields that are inside  "updateData" (checkedChecklistIds,studentOverrides)
+      { returnDocument: 'after' } // Returns the updated document, instead of before as it does in defult
     );
 
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
     const io = req.app.get('io');
     if (io) {
-      io.to(`project_${req.params.projectId}`).emit('projectUpdated', project);
-      io.to('lecturers').emit('projectUpdated', project);
+      io.to(`project_${req.params.projectId}`).emit('projectUpdated', project); // students viewing this project
+      io.to('lecturers').emit('projectUpdated', project); // lecturers on the dashboardroom, they joined that room in index.js
     }
 
     res.json(project);
@@ -180,4 +157,4 @@ router.patch('/:projectId', express.json(), async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router;  //exporting the router object

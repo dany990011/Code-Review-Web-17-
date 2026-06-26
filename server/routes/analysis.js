@@ -16,6 +16,7 @@ const Project = require('../models/Project');
 const { executeWithFallback } = require('../services/ai');
 const { getRepoContext, fetchRepoTree, toRawUrl, githubFetch } = require('../services/github');
 const rateLimit = require('../middleware/rateLimit');
+const { extractRequirementsText } = require('../services/requirements');
 
 // File types worth sending to the model, and directories never worth sending.
 const CODE_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c', '.go', '.rb', '.php', '.html', '.css', '.json'];
@@ -104,22 +105,24 @@ function handleAiError(res, error, fallbackMsg) {
   return true;
 }
 
-/**
- * POST /:projectId/analyze
- * Grades the codebase across 12 fixed categories and persists the scorecard.
- */
+// API Endpoint to run deep analysis
 router.post('/:projectId/analyze', aiLimiter, async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
+    // 1. Get default branch & tree
     const ctx = await getRepoContext(project.githubUrl);
     if (!ctx) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
     const tree = await fetchRepoTree(ctx);
+    // Filter to code files only
+    // Analyze more files to get a comprehensive view
     const files = selectCodeFiles(tree, ctx, 100); // broad view of the project
+    // 2. Fetch code for these files concurrently for better performance
     const fullCodebase = await fetchCodebaseText(ctx, files, { numbered: true });
 
+    // 3. Prepare AI Prompt
     const prompt = `You are a strict technical code reviewer grading a student project.
 Analyze the following codebase and grade it strictly across exactly 12 categories:
 Security, Performance, Readability, Architecture, Testing, Error Handling, State Management, Accessibility, Documentation, Scalability, Best Practices, Reusability.
@@ -136,14 +139,17 @@ Codebase:
 ${fullCodebase.slice(0, 1000000)}
 `;
 
+    // 4. Run AI Analysis
     const aiText = await executeWithFallback(async (genAI) => {
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       return result.response.text();
     });
 
+    // Clean up markdown formatting if returned
     const analysisResults = parseAiJson(aiText);
 
+    // 5. Save results to DB
     project.analysisResults = analysisResults;
     await project.save();
 
@@ -161,11 +167,7 @@ ${fullCodebase.slice(0, 1000000)}
   }
 });
 
-/**
- * POST /:projectId/check-requirements
- * Audits the codebase against the uploaded requirements document and persists
- * the compliance result.
- */
+// API Endpoint to check requirements against codebase
 router.post('/:projectId/check-requirements', aiLimiter, async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
@@ -175,19 +177,24 @@ router.post('/:projectId/check-requirements', aiLimiter, async (req, res) => {
     // file for projects uploaded before that field existed.
     let requirementsText = project.requirementsText;
     if (!requirementsText && project.requirementsFilePath && fs.existsSync(project.requirementsFilePath)) {
-      requirementsText = fs.readFileSync(project.requirementsFilePath, 'utf8');
+      requirementsText = await extractRequirementsText(project.requirementsFilePath, project.requirementsFileName);
     }
     if (!requirementsText) {
       return res.status(400).json({ error: 'Requirements document not found.' });
     }
 
+    // 1. Get default branch & tree
     const ctx = await getRepoContext(project.githubUrl);
     if (!ctx) return res.status(400).json({ error: 'Invalid GitHub URL' });
 
     const tree = await fetchRepoTree(ctx);
+    // Filter to code files only
+    // Take top 15 files to avoid massive context
     const files = selectCodeFiles(tree, ctx, 15); // smaller sample to bound context
+    // 2. Fetch code for these files
     const fullCodebase = await fetchCodebaseText(ctx, files, { numbered: false });
 
+    // 3. Prepare AI Prompt
     const prompt = `You are an expert technical auditor.
 I will provide you with a requirements document and a codebase.
 Compare the codebase against the requirements document and determine compliance.
@@ -209,14 +216,17 @@ Return ONLY a valid JSON object matching exactly this structure:
 }
 `;
 
+    // 4. Run AI Analysis
     const aiText = await executeWithFallback(async (genAI) => {
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(prompt);
       return result.response.text();
     });
 
+    // Clean up markdown formatting if returned
     const requirementsResults = parseAiJson(aiText);
 
+    // Save to DB
     project.requirementsCheckResults = requirementsResults;
     await project.save();
 

@@ -23,7 +23,7 @@ const chatLimiter = rateLimit({
   message: 'Too many chat messages from this network. Please wait a moment and try again.'
 });
 
-/** GET /:projectId/messages — conversation history, oldest first. */
+// API Endpoint to get chat messages
 router.get('/:projectId/messages', async (req, res) => {
   try {
     const messages = await Message.find({ projectId: req.params.projectId }).sort({ timestamp: 1 });
@@ -34,7 +34,7 @@ router.get('/:projectId/messages', async (req, res) => {
   }
 });
 
-/** POST /:projectId/messages — persist one message directly (used for the seed welcome message). */
+// API Endpoint to manually save a message (e.g., initial system message)
 router.post('/:projectId/messages', express.json(), async (req, res) => {
   try {
     const message = new Message({
@@ -51,12 +51,7 @@ router.post('/:projectId/messages', express.json(), async (req, res) => {
   }
 });
 
-/**
- * POST /:projectId/chat
- * Saves the student's message, replays the conversation to Gemini (optionally
- * with the currently-open file injected as context), saves the reply, and
- * returns both turns.
- */
+// API Endpoint for generating AI response and saving chat
 router.post('/:projectId/chat', chatLimiter, express.json(), async (req, res) => {
   try {
     const { text, contextLine, activeFile } = req.body;
@@ -64,7 +59,7 @@ router.post('/:projectId/chat', chatLimiter, express.json(), async (req, res) =>
       return res.status(400).json({ error: 'Text is required.' });
     }
 
-    // 1. Persist the user's message.
+    // 1. Save User Message
     const userMessage = new Message({
       projectId: req.params.projectId,
       role: 'user',
@@ -73,17 +68,18 @@ router.post('/:projectId/chat', chatLimiter, express.json(), async (req, res) =>
     });
     await userMessage.save();
 
-    // 2. Build the history Gemini expects (its roles are 'user' / 'model').
+    // 2. Fetch Chat History for context
     const history = await Message.find({ projectId: req.params.projectId }).sort({ timestamp: 1 });
+    // Map history to Gemini format (user or model)
     const geminiHistory = history.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.contextLine ? `[Line ${msg.contextLine}] ${msg.content}` : msg.content }]
     }));
-    // The turn we just saved is sent separately via sendMessage(), so drop it here.
+    // Remove the very last message (the one we just saved) as it will be passed to sendMessage
     geminiHistory.pop();
 
-    // Gemini requires history to start with a 'user' turn, but our first stored
-    // message is the assistant's welcome. Prepend a synthetic user turn if so.
+    // Gemini strictly requires the first message in history to be from the 'user'.
+    // Since our DB saves the bot's "Welcome" message first, we prepend a dummy user message.
     if (geminiHistory.length > 0 && geminiHistory[0].role === 'model') {
       geminiHistory.unshift({
         role: 'user',
@@ -91,8 +87,7 @@ router.post('/:projectId/chat', chatLimiter, express.json(), async (req, res) =>
       });
     }
 
-    // 3. Optionally inject the open file so the tutor can reason about real code.
-    //    Best-effort: any failure here just means we send the message without it.
+    // 4. Inject Active File Context & Send Message to Gemini
     let fileContentStr = '';
     if (activeFile) {
       try {
@@ -125,7 +120,7 @@ router.post('/:projectId/chat', chatLimiter, express.json(), async (req, res) =>
 
     const botResponseText = result.response.text();
 
-    // 5. Persist the assistant's reply.
+    // 5. Save Bot Message
     const botMessage = new Message({
       projectId: req.params.projectId,
       role: 'assistant',

@@ -20,7 +20,7 @@ const keyPool = apiKeys.map(key => ({
   exhaustedUntil: 0
 }));
 
-const COOLDOWN_MS = 60 * 60 * 1000; // sideline a rate-limited key for 1 hour
+const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * Runs `actionFn(genAI)` against the first healthy key, failing over on rate

@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Sun, Moon } from 'lucide-react';
-import LoginContainer from './components/Login/LoginContainer';
-import ProjectUploadContainer from './components/ProjectUpload/ProjectUploadContainer';
-import WorkspaceContainer from './components/Workspace/WorkspaceContainer';
-import LecturerDashboardContainer from './components/LecturerDashboard/LecturerDashboardContainer';
-
 import { ClerkProvider } from '@clerk/clerk-react';
+
+const LoginContainer = lazy(() => import('./components/Login/LoginContainer'));
+const ProjectUploadContainer = lazy(() => import('./components/ProjectUpload/ProjectUploadContainer'));
+const WorkspaceContainer = lazy(() => import('./components/Workspace/WorkspaceContainer'));
+const LecturerDashboardContainer = lazy(() => import('./components/LecturerDashboard/LecturerDashboardContainer'));
 
 // Clerk publishable key (public by design — safe to ship in the bundle).
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -58,12 +58,14 @@ function App() {
             </button>
           </header>
           <main className="flex-1 flex overflow-hidden print:overflow-visible">
-            <Routes>
-              <Route path="/" element={<LoginContainer />} />
-              <Route path="/upload" element={<ProjectUploadContainer />} />
-              <Route path="/workspace/:projectId" element={<WorkspaceContainer />} />
-              <Route path="/dashboard" element={<LecturerDashboardContainer />} />
-            </Routes>
+            <Suspense fallback={<div className="flex-1 bg-background" />}>
+              <Routes>
+                <Route path="/" element={<LoginContainer />} />
+                <Route path="/upload" element={<ProjectUploadContainer />} />
+                <Route path="/workspace/:projectId" element={<WorkspaceContainer />} />
+                <Route path="/dashboard" element={<LecturerDashboardContainer />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </Router>
