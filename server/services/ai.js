@@ -50,12 +50,13 @@ async function executeWithFallback(actionFn) {
 
       const isRateLimit = err.status === 429 || (err.message && err.message.includes('429')) || (err.message && err.message.toLowerCase().includes('quota'));
       const isServerError = err.status >= 500 || (err.message && err.message.includes('500'));
+      const isForbidden = err.status === 403 || (err.message && err.message.includes('403'));
 
-      if (isRateLimit || isServerError) {
+      if (isRateLimit || isServerError || isForbidden) {
         // Recoverable by switching keys: cool this one down and try the next.
         poolItem.exhaustedUntil = Date.now() + COOLDOWN_MS;
       } else {
-        // Anything else (bad request, auth, malformed prompt) won't be fixed by
+        // Anything else (bad request, malformed prompt) won't be fixed by
         // another key — fail fast.
         throw err;
       }
