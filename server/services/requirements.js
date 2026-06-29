@@ -19,7 +19,7 @@ async function extractRequirementsText(filePath, originalName = '') {
   if (ext === '.pdf') {
     const text = await extractPdfText(filePath);
     if (!text) {
-      throw new Error('Could not extract text from this PDF. Please upload a text-based PDF, TXT, or MD file.');
+      throw new Error('Could not extract text from this PDF. Please upload a text-based PDF');
     }
     return text;
   }

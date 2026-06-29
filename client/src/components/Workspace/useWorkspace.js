@@ -6,8 +6,7 @@ import useProjectReview from './useProjectReview';
 /**
  * Composition root for the workspace.
  *
- * This used to be a single ~330-line "god hook". It's now split into three
- * focused, independently-testable hooks, each owning one concern:
+ * It's split into three focused, independently-testable hooks, each owning one concern:
  *   - useFileViewer   : which file/line is open and its contents
  *   - useProjectReview: project + tree + AI scorecard + checklist/overrides + live sync
  *   - useChat         : the Socratic conversation

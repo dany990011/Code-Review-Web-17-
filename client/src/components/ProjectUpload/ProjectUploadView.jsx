@@ -56,7 +56,7 @@ export default function ProjectUploadView({
                   <p className="pl-1">or drag and drop</p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {requirementsDoc ? requirementsDoc.name : "PDF, DOCX, TXT up to 10MB"}
+                  {requirementsDoc ? requirementsDoc.name : "PDF (up to 10MB)"}
                 </p>
               </div>
             </div>
